@@ -1,0 +1,25 @@
+from enum import Enum
+
+
+class ID3PictureType(Enum):
+    OTHER = 0
+    FILE_ICON = 1
+    OTHER_FILE_ICON = 2
+    FRONT_COVER = 3
+    BACK_COVER = 4
+    LEAFLET_PAGE = 5
+    MEDIA = 6
+    LEAD_ARTIST = 7
+    ARTIST = 8
+    CONDUCTOR = 9
+    BAND = 10
+    COMPOSER = 11
+    LYRICIST = 12
+    RECORDING_LOCATION = 13
+    DURING_RECORDING = 14
+    DURING_PERFORMANCE = 15
+    MOVIE_CAPTURE = 16
+    FISH = 17
+    ILLUSTRATION = 18
+    BAND_LOGO = 19
+    PUBLISHER_LOGO = 20

@@ -1,0 +1,2 @@
+[tools.pyright]
+include = "spotify_dl"

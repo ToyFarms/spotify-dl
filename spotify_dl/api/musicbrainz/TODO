@@ -1,0 +1,19 @@
+# TODO
+
+to implement musicbrainz cover art archive (CAA), will require some sort of
+manual intervention from the user, keeping in mind this application is mainly in
+terminal, displaying image for the prompt would be difficult (i know TGP, sixel
+exists, but its unreliable).
+
+# Steps
+
+ 1.  get MBID
+[2]. find the correct release (album), there is also multiple version of this
+        (e.g. for different country release), so we need user interaction
+[3]. find the correct recording, since a release may contain multiple recording
+        (example: https://musicbrainz.org/recording/96685213-a25c-4678-9a13-abd9ec81cf35)
+        for this case, we choose the 20th anniversart ed. made in UK
+        (https://musicbrainz.org/release/2755bfc1-9438-4ae8-8a49-3f820dbca482/disc/1#884b2747-478c-34f1-adee-0702bdc1e2ae)
+ 4.  then we finally get to the track
+
+[n]: require user interaction

@@ -1,0 +1,2 @@
+TODO: abstracting downloader backend, such that we can implement other streaming platform too
+TODO: general token management class
