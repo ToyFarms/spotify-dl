@@ -1,5 +1,6 @@
 from __future__ import annotations
 from enum import Enum, auto
+from pathlib import Path
 from typing import Self
 
 
@@ -75,7 +76,7 @@ class AudioCodec(Enum):
                 return AudioCodec.FLAC
             case "mp3" | ".mp3":
                 return AudioCodec.MP3
-            case "mp4" | ".mp4":
+            case "mp4" | ".mp4" | "m4a" | ".m4a":
                 return AudioCodec.MP4
             case _:
                 return AudioCodec.UNKNOWN
@@ -91,6 +92,73 @@ class AudioCodec(Enum):
             AudioCodec.FLAC: "audio/flac",
             AudioCodec.MP4: "audio/mp4",
         }.get(self, "application/octet-stream")
+
+    @staticmethod
+    def _sniff_bytes(b: bytes) -> AudioCodec:
+        if not b:
+            return AudioCodec.UNKNOWN
+
+        # FLAC
+        if b.startswith(b"fLaC"):
+            return AudioCodec.FLAC
+
+        # OGG
+        if b.startswith(b"OggS"):
+            # Vorbis
+            if b.find(b"\x01vorbis") != -1:
+                return AudioCodec.OGG_VORBIS
+            # OpusHead
+            if b.find(b"OpusHead") != -1:
+                return AudioCodec.UNKNOWN
+            # OGG container, unknown codec
+            return AudioCodec.UNKNOWN
+
+        # MP3
+        if b.startswith(b"ID3"):
+            return AudioCodec.MP3
+        if len(b) >= 2 and b[0] == 0xFF and (b[1] & 0xE0) == 0xE0:
+            # ADTS (AAC)
+            if len(b) >= 3 and (b[1] & 0xF6) == 0xF0:
+                return AudioCodec.AAC
+            return AudioCodec.MP3
+
+        # AAC ADTS
+        if len(b) >= 2 and b[0] == 0xFF and (b[1] & 0xF0) == 0xF0:
+            return AudioCodec.AAC
+
+        # WAV
+        if b.startswith(b"RIFF") and b[8:12] == b"WAVE":
+            return AudioCodec.UNKNOWN
+
+        # MP4/M4A
+        if b.find(b"ftyp") != -1:
+            return AudioCodec.MP4
+
+        # Matroska/WebM
+        if b.startswith(b"\x1a\x45\xdf\xa3"):
+            return AudioCodec.UNKNOWN
+
+        # FLV
+        if b.startswith(b"FLV"):
+            return AudioCodec.UNKNOWN
+
+        return AudioCodec.UNKNOWN
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> AudioCodec:
+        return cls._sniff_bytes(data)
+
+    @classmethod
+    def from_file(
+        cls, path: str, max_bytes: int = 65536, extension_fallback: bool = False
+    ) -> AudioCodec:
+        try:
+            with open(path, "rb") as f:
+                data = f.read(max_bytes)
+            return cls._sniff_bytes(data)
+        except Exception:
+            if extension_fallback:
+                return AudioCodec.from_extension(Path(path).suffix)
 
 
 class AudioQuality(Enum):

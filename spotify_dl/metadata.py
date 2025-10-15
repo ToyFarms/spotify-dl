@@ -407,7 +407,8 @@ class MetadataProviderAtoms(MetadataProtocol, ReplayGainProtocol, BaseMetadataPr
             return
         if not self.tags.tags:
             self.tags.tags = MP4Tags()
-        self.tags.tags["trkn"] = [(int(x), 0)]
+        num, total = x.split("/")
+        self.tags.tags["trkn"] = [(int(num), int(total))]
 
     @override
     def disc_number(self, x: str | None) -> None:
@@ -416,7 +417,8 @@ class MetadataProviderAtoms(MetadataProtocol, ReplayGainProtocol, BaseMetadataPr
             return
         if not self.tags.tags:
             self.tags.tags = MP4Tags()
-        self.tags.tags["disk"] = [(int(x), 0)]
+        num, total = x.split("/")
+        self.tags.tags["disk"] = [(int(num), int(total))]
 
     @override
     def isrc(self, x: str | None) -> None:
@@ -425,7 +427,7 @@ class MetadataProviderAtoms(MetadataProtocol, ReplayGainProtocol, BaseMetadataPr
             return
         if not self.tags.tags:
             self.tags.tags = MP4Tags()
-        self.tags.tags["----:com.apple.iTunes:ISRC"] = [x]
+        self.tags.tags["isrc"] = [x]
 
     @override
     def popularity(self, x: int | None) -> None:

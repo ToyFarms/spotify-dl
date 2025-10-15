@@ -8,15 +8,21 @@
 
 import atexit
 import json
+import os
+from pprint import pprint
 import readline
 import argparse
 import shlex
 import logging
+import subprocess
+import yt_dlp
 
-from typing import Any, Callable, cast, override
+from typing import Any, Callable, TypedDict, cast, override
 from pathlib import Path
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+
+from yt_dlp.utils import DownloadError
 
 from spotify_dl.api.internal.spotify_client import SpotifyClient
 from spotify_dl.auth.web_auth import SpotifyAuthPKCE
@@ -30,6 +36,7 @@ from spotify_dl.metadata import apply_metadata
 from spotify_dl.track import Track
 
 from spotify_dl.utils.terminal import print_table
+from spotify_dl.utils.ytdl import choose_best_audio_format
 
 
 def get_username(auth: SpotifyAuthPKCE) -> str:
@@ -210,6 +217,180 @@ def main() -> None:
                 print(json.dumps(state.last_json_output, ensure_ascii=False, indent=4))
             case ["exit" | "quit", *_]:
                 state.running = False
+            case ["yt-download" | "ytdl", uri]:
+                if state.auth.require_login():
+                    print("Not logged in")
+                    continue
+
+                track = Track.probe(uri)
+                meta = track.get_metadata_internal(state.auth)
+                print(
+                    f"Downloading {meta['name']!r} from the album {meta['album']['name']!r} (duration={meta['duration']}) featuring {len(meta['artist'])} artists: ",
+                    end="",
+                )
+                for i, artist in enumerate(meta["artist"]):
+                    if i != 0:
+                        print(", ", end="")
+                    print(f"{artist['name']}", end="")
+                print()
+
+                ydl_opts = {
+                    "noplaylist": True,
+                    "quiet": True,
+                    "skip_download": True,
+                    "postprocessors": [],
+                    "postprocessor_args": {},
+                    "addmetadata": False,
+                    "embed_metadata": False,
+                    "embedthumbnail": False,
+                    "writethumbnail": False,
+                    "writeinfojson": False,
+                    "xattrs": False,
+                    "no_warnings": True,
+                }
+
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    artists = " ".join(artist["name"] for artist in meta["artist"])
+                    info = ydl.extract_info(
+                        f"ytsearch5:{artists} {meta['name']}", download=False
+                    )
+
+                    class Entry(TypedDict):
+                        artist: str
+                        title: str
+                        duration: int
+                        views: int
+                        url: str
+                        formats: list[dict]
+
+                    formatted: list[Entry] = []
+                    for entry in info["entries"]:
+                        artist = (
+                            entry.get("artist")
+                            or entry.get("uploader")
+                            or entry.get("uploader_id")
+                            or "Unknown Artist"
+                        )
+                        title = entry.get("title", "Unknown Title")
+                        duration = entry.get("duration", 0)
+                        views = entry.get("view_count", 0)
+                        url = (
+                            entry.get("webpage_url")
+                            or entry.get("url")
+                            or f"ytsearch:{title}"
+                        )
+                        formats = entry.get("formats", [])
+
+                        formatted.append(
+                            {
+                                "artist": artist,
+                                "title": title,
+                                "duration": duration,
+                                "views": views,
+                                "url": url,
+                                "formats": formats,
+                            }
+                        )
+
+                    entry = prompt(
+                        "Select the video: ",
+                        formatted,
+                        default=formatted[0],
+                        repr_fun=lambda x, _: f"{x['artist']} - {x['title']} (duration={x['duration']:_} views={x['views']:_})",
+                    )
+
+                    fmt = choose_best_audio_format(entry["formats"])
+
+                    out_name = f"{meta['name']} - {', '.join(a['name'] for a in meta['artist'])}.%(ext)s"
+                    path = Path(out_name)
+                    if state.dir:
+                        path = state.dir.expanduser().absolute() / path
+                    outtmpl = str(path)
+
+                    def hook(d):
+                        if d.get("status") == "finished":
+                            downloaded = (
+                                d.get("filename")
+                                or d.get("info_dict", {}).get("_filename")
+                                or d.get("info_dict", {}).get("filepath")
+                            )
+                            if not downloaded:
+                                print(
+                                    "Warning: finished hook called but no filename was reported by yt-dlp."
+                                )
+                                return
+
+                            downloaded_path = Path(downloaded)
+
+                            if downloaded_path.suffix.lower() not in (".ogg", ".opus"):
+                                out = downloaded_path.with_suffix(".ogg")
+                                ffmpeg_cmd = [
+                                    "ffmpeg",
+                                    "-y",
+                                    "-i",
+                                    str(downloaded_path),
+                                    "-c:a",
+                                    "libvorbis",
+                                    "-q:a",
+                                    "6",
+                                    str(out),
+                                ]
+                                try:
+                                    subprocess.run(
+                                        ffmpeg_cmd,
+                                        check=True,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE,
+                                    )
+                                except subprocess.CalledProcessError as e:
+                                    print(
+                                        f"Failed to convert to oggvorbis: {e.stderr.decode(errors='ignore')}"
+                                    )
+                                    downloaded_path = downloaded_path
+                                else:
+                                    try:
+                                        os.remove(downloaded_path)
+                                    except OSError:
+                                        pass
+                                    downloaded_path = out
+
+                            track.set_format(
+                                AudioFormat.from_codec(
+                                    AudioCodec.from_file(
+                                        str(downloaded_path), extension_fallback=True
+                                    ),
+                                    AudioQuality.NORMAL,
+                                )
+                            )
+                            apply_metadata(track, str(downloaded_path), state.auth)
+
+                    ydl_download_opts = {
+                        "format": (fmt["format_id"] if fmt else "bestaudio"),
+                        "outtmpl": outtmpl,
+                        "noplaylist": True,
+                        "quiet": False,
+                        "progress_hooks": [hook],
+                        "postprocessors": [],
+                        "postprocessor_args": {},
+                        "addmetadata": False,
+                        "embed_metadata": False,
+                        "embedthumbnail": False,
+                        "writethumbnail": False,
+                        "writeinfojson": False,
+                        "xattrs": False,
+                    }
+
+                    try:
+                        with yt_dlp.YoutubeDL(ydl_download_opts) as ydl2:
+                            ydl2.download([entry["url"]])
+                    except DownloadError as e:
+                        print(
+                            f"Requested format not available, falling back to 'bestaudio'. Error: {e}"
+                        )
+                        ydl_download_opts["format"] = "bestaudio"
+                        with yt_dlp.YoutubeDL(ydl_download_opts) as ydl2:
+                            ydl2.download([entry["url"]])
+
             case ["download" | "dl", *rest]:
                 if state.auth.require_login():
                     print("Not logged in")
