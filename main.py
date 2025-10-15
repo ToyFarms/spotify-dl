@@ -3,6 +3,9 @@
 # TODO: persistent state management
 # TODO: persistent download (allow for resuming interrupted download)
 
+# NOTE: spotify download is currently not working (for free user only i think), because of some change in their backend, i cannot get the audio key, nothing i can do about it unless someone finds a way around it
+# Issues: https://github.com/Googolplexed0/zotify/issues/86, https://github.com/DraftKinner/zotify/issues/95, https://github.com/kokarare1212/librespot-python/issues/315
+
 import atexit
 import json
 import readline
