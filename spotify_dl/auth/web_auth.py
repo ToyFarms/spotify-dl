@@ -2,7 +2,6 @@
 
 import base64
 import hashlib
-import json
 import secrets
 import logging
 import threading
@@ -13,8 +12,9 @@ import requests
 import sys
 
 from flask import Flask, request
-from typing import TypeGuard, TypedDict
+from typing import TypeGuard, TypedDict, final, override
 
+from spotify_dl.auth.auth_provider import AuthProvider
 from spotify_dl.utils.misc import url_build
 from spotify_dl.utils.session import Session
 
@@ -56,18 +56,17 @@ def callback():
     return "Spotify authorization successful! You can close this window."
 
 
-class SpotifyAuthPKCE:
+@final
+class SpotifyAuthPKCE(AuthProvider[SpotifyTokenSchema]):
     CLIENT_ID: str = "65b708073fc0480ea92a077233ca87bd"
     REDIRECT_URI: str = "http://127.0.0.1:8898/login"
 
-    def __init__(self, scope: str, cache_file: str = ".spotify_token.json") -> None:
-        self.scope: str = scope
-        self.cache_file: str = cache_file
+    def __init__(self, scope: str) -> None:
+        super().__init__(key="web-auth")
 
+        self.scope: str = scope
         self._verifier: bytes = b""
         self._challenge: bytes = b""
-        self._token: SpotifyTokenSchema | None = self._load_token(self.cache_file)
-
         self.session: Session = Session(self)
 
     def create_auth_url(self) -> str:
@@ -87,13 +86,14 @@ class SpotifyAuthPKCE:
     def authenticate(self) -> None:
         if self.require_login():
             self._authenticate()
-        elif self.token_expired():
-            self._refresh_token()
+        elif self.is_token_expired(self._token):
+            self.refresh_token()
 
-        if not self._is_token_valid(self._token):
+        if not self.is_token_valid(self._token):
             raise ValueError("Token is invalid")
 
     @property
+    @override
     def token(self) -> str:
         self.authenticate()
 
@@ -102,9 +102,11 @@ class SpotifyAuthPKCE:
 
         return self._token["access_token"]
 
-    def _is_token_valid(
-        self, token: SpotifyTokenSchema | None
+    @override
+    def is_token_valid(
+        self, token: SpotifyTokenSchema | None = None
     ) -> TypeGuard[SpotifyTokenSchema]:
+        token = token or self._token
         if not token or "access_token" not in token:
             return False
 
@@ -113,19 +115,19 @@ class SpotifyAuthPKCE:
 
         return True
 
-    def is_token_valid(self) -> bool:
-        return self._is_token_valid(self._token)
-
     def require_login(self) -> bool:
         return not self._token or "access_token" not in self._token
 
-    def token_expired(self) -> bool:
-        if not self._token:
+    @override
+    def is_token_expired(self, token: SpotifyTokenSchema | None = None) -> bool:
+        token = token or self._token
+        if not token:
             return True
 
-        return time.time() >= self._token.get("expires_at", 0)
+        return time.time() >= token.get("expires_at", 0)
 
-    def _refresh_token(self) -> None:
+    @override
+    def refresh_token(self) -> None:
         if not self._token:
             raise ValueError("Expecting some token")
 
@@ -139,7 +141,7 @@ class SpotifyAuthPKCE:
                 "refresh_token": self._token["refresh_token"],
             }
         )
-        self._save_token(self.cache_file, token)
+        self._save(token)
 
     def _authenticate(self) -> None:
         self._run_server()
@@ -159,7 +161,7 @@ class SpotifyAuthPKCE:
                 "code_verifier": self._verifier,
             }
         )
-        self._save_token(self.cache_file, token)
+        self._save(token)
 
     def _run_server(self) -> None:
         thread = threading.Thread(target=lambda: app.run(port=8898), daemon=True)
@@ -190,24 +192,14 @@ class SpotifyAuthPKCE:
 
         return typing.cast(SpotifyTokenSchema, res.json())
 
-    def _save_token(self, path: str, token: SpotifyTokenSchema) -> None:
+    @override
+    def _save(self, token: SpotifyTokenSchema | None) -> None:
         token["expires_at"] = int(time.time()) + token["expires_in"]
-
         refresh_token = self._token.get("refresh_token") if self._token else None
+        super()._save(token)
 
-        self._token = token
-        if not token.get("refresh_token") and refresh_token:
+        if self._token and not token.get("refresh_token") and refresh_token:
             self._token["refresh_token"] = refresh_token
-
-        with open(path, "w") as f:
-            json.dump(token, f)
-
-    def _load_token(self, path: str) -> SpotifyTokenSchema | None:
-        try:
-            with open(path, "r") as f:
-                return typing.cast(SpotifyTokenSchema, json.load(f))
-        except:
-            return None
 
 
 def _code_verifier(length: int) -> bytes:

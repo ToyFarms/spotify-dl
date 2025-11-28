@@ -80,3 +80,62 @@ class ArtistMetadata(TypedDict):
     popularity: int  # 82
     type: Literal["artist"]
     uri: SpotifyURI
+
+
+class ManifestFileMP4(TypedDict):
+    bitrate: int  # 256000
+    file_id: str  # 05c72a33...
+    file_url: URL | None  # null or URL
+    impression_urls: list[URL] | None  # null or list of URLs
+    track_type: str  # AUDIO
+    format: str  # 11 or 10
+    audio_quality: str  # VERY_HIGH, HIGH
+    hifi_status: str | None  # NONE
+    gain_db: float | None  # null
+    expires_at: str | None  # null or timestamp
+    average_bitrate: int | None  # 260280
+
+
+class Manifest(TypedDict):
+    file_ids_mp4: list[ManifestFileMP4]
+
+
+class Author(TypedDict):
+    name: str
+    uri: SpotifyURI
+
+
+class ItemMetadata(TypedDict):
+    uri: SpotifyURI  # spotify:track:...
+    linked_from_uri: SpotifyURI | None  # null
+    context_description: str | None  # null
+    context_uri: SpotifyURI | None  # spotify:track:...
+    name: str
+    group_name: str | None
+    group_uri: SpotifyURI | None  # spotify:album:...
+    authors: list[Author]
+    duration: int  # 274796
+    images: list[Image]
+    episode_content_type: str | None  # null
+    show_content_type: str | None  # null
+    playback_platform_context_id: str | None  # null
+    playback_platform_generated_audio: str | None  # null
+    is_explicit: bool  # False
+
+
+class Item(TypedDict):
+    metadata: ItemMetadata
+    manifest: Manifest
+    audio_id: str | None  # null
+    track_type: Literal["AUDIO"]
+    ms_played_until_update: int  # 30000
+    ms_playing_update_interval: int  # 0
+    content_type: Literal["TRACK"]
+
+
+class MediaEntry(TypedDict):
+    item: Item
+
+
+class MediaResponse(TypedDict):
+    media: dict[SpotifyURI, MediaEntry]

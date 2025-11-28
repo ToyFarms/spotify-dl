@@ -8,18 +8,25 @@ import time
 from pathlib import Path
 from dataclasses import dataclass
 from queue import PriorityQueue, Queue
+import traceback
 from typing import Any, Callable
 from requests import HTTPError
 
+from spotify_dl.api.internal.widevine import WidevineClient
+from spotify_dl.api.web.storage_resolve import storage_resolve
+from spotify_dl.key_provider import KeyProvider
 from spotify_dl.api.internal.spotify_client import SpotifyClient
 from spotify_dl.auth.web_auth import SpotifyAuthPKCE
 from spotify_dl.metadata import apply_metadata
-from spotify_dl.stream import SpotifyStream
+from spotify_dl.stream import (
+    ChunkedStream,
+    DecryptedSpotifyStream,
+    EncryptedSpotifyStream,
+)
 from spotify_dl.track import Track
 from spotify_dl.format import AudioCodec, AudioFormat
 
 
-# TODO: separate client into a keyprovider
 class SpotifyDownloader:
     logger: logging.Logger = logging.getLogger("spdl:downloader")
     OGG_HEADER_SKIP: int = 167
@@ -29,7 +36,7 @@ class SpotifyDownloader:
         self,
         track: Track,
         auth: SpotifyAuthPKCE,
-        client: SpotifyClient,
+        key_provider: KeyProvider,
     ) -> None:
         self.track: Track = track
 
@@ -37,23 +44,31 @@ class SpotifyDownloader:
             raise ValueError("Track format is not set")
         self.format: AudioFormat = track.format
         self.auth: SpotifyAuthPKCE = auth
-        self.client: SpotifyClient = client
+        self.key_provider: KeyProvider = key_provider
+
+        cdn_urls, fileid = self._resolve(track.format.file_id)
 
         key = SpotifyDownloader._KEY_CACHE.get(track.format.gid)
         if key is None:
-            key = self.client.get_audio_key(
+            key = self.key_provider.get_audio_key(
                 binascii.unhexlify(track.format.gid),
-                binascii.unhexlify(track.format.file_id),
+                (
+                    binascii.unhexlify(track.format.file_id)
+                    if not isinstance(self.key_provider, WidevineClient)
+                    else fileid.encode()
+                ),
             )
-            SpotifyDownloader._KEY_CACHE[track.format.gid] = key
+            self.logger.info(f"key: {key}")
+            if key:
+                SpotifyDownloader._KEY_CACHE[track.format.gid] = key
 
-        cdn_urls = self._resolve(track.format.file_id)
-
+        self.stream: DecryptedSpotifyStream | EncryptedSpotifyStream
         for cdn in cdn_urls:
             try:
-                self.stream: SpotifyStream = SpotifyStream(
-                    cdn, key, max_cached_chunks=-1
-                )
+                if key:
+                    self.stream = DecryptedSpotifyStream(cdn, key, max_cached_chunks=-1)
+                else:
+                    self.stream = EncryptedSpotifyStream(cdn, max_cached_chunks=-1)
                 break
             except HTTPError:
                 self.logger.debug(f"Could not connect to {cdn}, trying next")
@@ -63,26 +78,18 @@ class SpotifyDownloader:
 
         self.duration_ms: float | None = self.track.get_metadata_internal(
             self.auth
-        ).get("duration")
+        ).duration
         self.finished_event: threading.Event = threading.Event()
 
-    def _resolve(self, file_id: str) -> list[str]:
-        res = self.auth.session.get(
-            f"https://gew4-spclient.spotify.com/storage-resolve/v2/files/audio/interactive/10/{file_id}",
-            params={
-                "version": 10000000,
-                "product": 9,
-                "platform": 39,
-                "alt": "json",
-            },
-        )
-        cdn_urls: list[str] = res.json().get("cdnurl", [])
+    def _resolve(self, file_id: str) -> tuple[list[str], str]:
+        res = storage_resolve(self.auth.session, file_id)
+        cdn_urls: list[str] = res.get("cdnurl", [])
         self.logger.debug(f"cdn for {file_id}: {cdn_urls}")
 
         if not cdn_urls:
             raise ValueError(f"No cdn url for {file_id}")
 
-        return cdn_urls
+        return cdn_urls, res["fileid"]
 
     def get_percentage(self) -> float:
         """returns downloaded / size"""
@@ -152,7 +159,7 @@ class SpotifyDownloader:
 class SpotifyDownloadParam:
     track: Track
     auth: SpotifyAuthPKCE
-    client: SpotifyClient
+    key_provider: KeyProvider
     output: str
     emulate_playback: bool
 
@@ -176,7 +183,9 @@ class SpotifyDownloadManager:
         self.threads: list[threading.Thread] = []
         self._active: PriorityQueue[tuple[str, SpotifyDownloadState]] = PriorityQueue()
         self._cond: threading.Condition = threading.Condition()
-        self.download_cb: Callable[[SpotifyDownloadState], Queue[bytes]] | None = download_cb
+        self.download_cb: Callable[[SpotifyDownloadState], Queue[bytes]] | None = (
+            download_cb
+        )
 
         for i in range(concurrent_download):
             tid = threading.Thread(
@@ -196,10 +205,15 @@ class SpotifyDownloadManager:
             thread_name = threading.current_thread().name
 
             try:
-                dl = SpotifyDownloader(param.track, param.auth, param.client)
+                dl = SpotifyDownloader(param.track, param.auth, param.key_provider)
 
                 state = SpotifyDownloadState(dl, param, None)
-                state.buffer = self.download_cb(state) if self.download_cb else None
+                state.buffer = (
+                    self.download_cb(state)
+                    if self.download_cb
+                    and isinstance(dl.stream, DecryptedSpotifyStream)
+                    else None
+                )
 
                 with self._cond:
                     self._active.put((thread_name, state))
@@ -209,7 +223,11 @@ class SpotifyDownloadManager:
                 self.logger.info(
                     f"Now downloading: {param.track.get_metadata(param.auth)['name']}",
                 )
-                dl.download(param.output, param.emulate_playback, state.buffer)
+                dl.download(
+                    param.output,
+                    param.emulate_playback,
+                    state.buffer,
+                )
                 self.logger.info(f"Download finished, saved in: {param.output!r}")
 
                 apply_metadata(
@@ -223,6 +241,7 @@ class SpotifyDownloadManager:
                     f"Finished adding metadata, saved in: {param.output!r}"
                 )
             except Exception as e:
+                traceback.print_exc()
                 self.logger.error(f"Error while downloading: {e}")
             finally:
                 self.queue.task_done()

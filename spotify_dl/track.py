@@ -1,3 +1,4 @@
+import binascii
 import logging
 import re
 
@@ -6,11 +7,19 @@ from typing import Self, TypedDict, cast
 from urllib.parse import urlparse
 from dataclasses import dataclass
 
+from spotify_dl.api.internal.proto.extension_kind_pb2 import ExtensionKind
+from spotify_dl.api.web.apresolve import get_random_spclient
 from spotify_dl.auth.web_auth import SpotifyAuthPKCE
 from spotify_dl.format import AudioFormat
-from spotify_dl.model.web import TrackMetadata
-from spotify_dl.model.internal import TrackMetadata as ITrackMetadata
+from spotify_dl.model.web import ManifestFileMP4, MediaResponse, TrackMetadata
 from spotify_dl.utils.bytes_stuff import to_bytes
+from spotify_dl.api.internal.proto.extended_metadata_pb2 import (
+    EntityRequest,
+    BatchedEntityRequest,
+    ExtensionQuery,
+    BatchedExtensionResponse,
+)
+from spotify_dl.api.internal.proto import metadata_pb2 as Metadata
 
 
 class AudioFile(TypedDict):
@@ -40,25 +49,51 @@ class Track:
         self.id_b16: str = id_base16
         self.type: Track.Type = type
 
+        # TODO: global caching system
         self._metadata: TrackMetadata | None = None
-        self._metadata_internal: ITrackMetadata | None = None
+        self._metadata_internal: Metadata.Track | None = None
+        self._manifest: MediaResponse | None = None
         self.format: AudioFormat | None = None
+
+    def get_mp4_manifest(
+        self, auth: SpotifyAuthPKCE, file_id: str
+    ) -> list[ManifestFileMP4]:
+        uri = f"spotify:track:{file_id}"
+        if self._manifest:
+            return self._manifest["media"][uri]["item"]["manifest"]["file_ids_mp4"]
+
+        res = auth.session.get(
+            f"https://{get_random_spclient()[0]}/track-playback/v1/media/{uri}?manifestFileFormat=file_ids_mp4"
+        )
+        res.raise_for_status()
+
+        self._manifest = cast(MediaResponse, res.json())
+        return self._manifest["media"][uri]["item"]["manifest"]["file_ids_mp4"]
 
     def get_metadata_internal(
         self,
         auth: SpotifyAuthPKCE,
-    ) -> ITrackMetadata:
+    ) -> Metadata.Track:
         if self._metadata_internal:
             return self._metadata_internal
 
-        res = auth.session.get(
-            f"https://spclient.wg.spotify.com/metadata/4/track/{self.id_b16}?market=from_token",
-            headers={"Accept": "application/json"},
+        query = ExtensionQuery(extension_kind=ExtensionKind.TRACK_V4)
+        req = EntityRequest(entity_uri=f"spotify:track:{self.id_b62}", query=[query])
+        batched_req = BatchedEntityRequest(entity_request=[req])
+        res = auth.session.post(
+            "https://spclient.wg.spotify.com/extended-metadata/v0/extended-metadata",
+            headers={"Content-Type": "application/x-protobuf"},
+            data=batched_req.SerializeToString(),
         )
         res.raise_for_status()
 
-        self._metadata_internal = cast(ITrackMetadata, res.json())
-        self.logger.debug(self._metadata_internal)
+        batched_res = BatchedExtensionResponse()
+        _ = batched_res.ParseFromString(res.content)
+
+        data = batched_res.extended_metadata[0].extension_data[0].extension_data.value
+
+        self._metadata_internal = Metadata.Track()
+        _ = self._metadata_internal.ParseFromString(data)
 
         return self._metadata_internal
 
@@ -84,25 +119,32 @@ class Track:
 
     def get_formats(self, auth: SpotifyAuthPKCE) -> list[AudioFormat]:
         metadata = self.get_metadata_internal(auth)
-        files: list[AudioFile] | None = metadata.get("file") or metadata.get(
-            "alternative"
-        )
+
+        files: list[Metadata.AudioFile] | None = list(metadata.file)
         if not files:
             raise ValueError("Expecting a list of files")
 
-        try:
-            if "file" in files[0] and isinstance(cast(object, files[0]["file"]), list):
-                files = files[0]["file"]
-        except Exception:
-            pass
+        mp4s = self.get_mp4_manifest(auth, self.id_b62)
+
+        MP4_QUALITY = {
+            128000: AudioFormat.Type.MP4_128,
+            256000: AudioFormat.Type.MP4_256,
+        }
 
         return [
             AudioFormat(
-                AudioFormat.Type[file["format"]],
-                file["file_id"],
-                metadata["gid"],
+                AudioFormat.Type.from_proto(file.format),
+                binascii.hexlify(file.file_id).decode(),
+                binascii.hexlify(metadata.gid).decode(),
             )
             for file in files
+        ] + [
+            AudioFormat(
+                MP4_QUALITY[mp4["bitrate"]],
+                mp4["file_id"],
+                binascii.hexlify(metadata.gid).decode(),
+            )
+            for mp4 in mp4s
         ]
 
     def get_format(

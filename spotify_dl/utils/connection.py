@@ -22,6 +22,9 @@ class SocketConnection:
         self.sock.connect((addr, port))
         self.buf: io.BytesIO = io.BytesIO()
 
+    def close(self) -> None:
+        self.sock.close()
+
     def flush(self) -> None:
         _ = self.buf.seek(0)
         buf = self.buf.read()

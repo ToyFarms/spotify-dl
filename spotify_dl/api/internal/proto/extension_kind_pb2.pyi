@@ -1,0 +1,398 @@
+from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
+from google.protobuf import descriptor as _descriptor
+from typing import ClassVar as _ClassVar
+
+DESCRIPTOR: _descriptor.FileDescriptor
+
+class ExtensionKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    UNKNOWN_EXTENSION: _ClassVar[ExtensionKind]
+    CANVAZ: _ClassVar[ExtensionKind]
+    STORYLINES: _ClassVar[ExtensionKind]
+    PODCAST_TOPICS: _ClassVar[ExtensionKind]
+    PODCAST_SEGMENTS: _ClassVar[ExtensionKind]
+    AUDIO_FILES: _ClassVar[ExtensionKind]
+    TRACK_DESCRIPTOR: _ClassVar[ExtensionKind]
+    PODCAST_COUNTER: _ClassVar[ExtensionKind]
+    ARTIST_V4: _ClassVar[ExtensionKind]
+    ALBUM_V4: _ClassVar[ExtensionKind]
+    TRACK_V4: _ClassVar[ExtensionKind]
+    SHOW_V4: _ClassVar[ExtensionKind]
+    EPISODE_V4: _ClassVar[ExtensionKind]
+    PODCAST_HTML_DESCRIPTION: _ClassVar[ExtensionKind]
+    PODCAST_QUOTES: _ClassVar[ExtensionKind]
+    USER_PROFILE: _ClassVar[ExtensionKind]
+    CANVAS_V1: _ClassVar[ExtensionKind]
+    SHOW_V4_BASE: _ClassVar[ExtensionKind]
+    SHOW_V4_EPISODES_ASSOC: _ClassVar[ExtensionKind]
+    TRACK_DESCRIPTOR_SIGNATURES: _ClassVar[ExtensionKind]
+    PODCAST_AD_SEGMENTS: _ClassVar[ExtensionKind]
+    EPISODE_TRANSCRIPTS: _ClassVar[ExtensionKind]
+    PODCAST_SUBSCRIPTIONS: _ClassVar[ExtensionKind]
+    EXTRACTED_COLOR: _ClassVar[ExtensionKind]
+    PODCAST_VIRALITY: _ClassVar[ExtensionKind]
+    IMAGE_SPARKLES_HACK: _ClassVar[ExtensionKind]
+    PODCAST_POPULARITY_HACK: _ClassVar[ExtensionKind]
+    AUTOMIX_MODE: _ClassVar[ExtensionKind]
+    CUEPOINTS: _ClassVar[ExtensionKind]
+    PODCAST_POLL: _ClassVar[ExtensionKind]
+    EPISODE_ACCESS: _ClassVar[ExtensionKind]
+    SHOW_ACCESS: _ClassVar[ExtensionKind]
+    PODCAST_QNA: _ClassVar[ExtensionKind]
+    CLIPS: _ClassVar[ExtensionKind]
+    SHOW_V5: _ClassVar[ExtensionKind]
+    EPISODE_V5: _ClassVar[ExtensionKind]
+    PODCAST_CTA_CARDS: _ClassVar[ExtensionKind]
+    PODCAST_RATING: _ClassVar[ExtensionKind]
+    DISPLAY_SEGMENTS: _ClassVar[ExtensionKind]
+    GREENROOM: _ClassVar[ExtensionKind]
+    USER_CREATED: _ClassVar[ExtensionKind]
+    SHOW_DESCRIPTION: _ClassVar[ExtensionKind]
+    SHOW_HTML_DESCRIPTION: _ClassVar[ExtensionKind]
+    SHOW_PLAYABILITY: _ClassVar[ExtensionKind]
+    EPISODE_DESCRIPTION: _ClassVar[ExtensionKind]
+    EPISODE_HTML_DESCRIPTION: _ClassVar[ExtensionKind]
+    EPISODE_PLAYABILITY: _ClassVar[ExtensionKind]
+    SHOW_EPISODES_ASSOC: _ClassVar[ExtensionKind]
+    CLIENT_CONFIG: _ClassVar[ExtensionKind]
+    PLAYLISTABILITY: _ClassVar[ExtensionKind]
+    AUDIOBOOK_V5: _ClassVar[ExtensionKind]
+    CHAPTER_V5: _ClassVar[ExtensionKind]
+    AUDIOBOOK_SPECIFICS: _ClassVar[ExtensionKind]
+    EPISODE_RANKING: _ClassVar[ExtensionKind]
+    HTML_DESCRIPTION: _ClassVar[ExtensionKind]
+    CREATOR_CHANNEL: _ClassVar[ExtensionKind]
+    AUDIOBOOK_PROVIDERS: _ClassVar[ExtensionKind]
+    PLAY_TRAIT: _ClassVar[ExtensionKind]
+    CONTENT_WARNING: _ClassVar[ExtensionKind]
+    IMAGE_CUE: _ClassVar[ExtensionKind]
+    STREAM_COUNT: _ClassVar[ExtensionKind]
+    AUDIO_ATTRIBUTES: _ClassVar[ExtensionKind]
+    NAVIGABLE_TRAIT: _ClassVar[ExtensionKind]
+    NEXT_BEST_EPISODE: _ClassVar[ExtensionKind]
+    AUDIOBOOK_PRICE: _ClassVar[ExtensionKind]
+    EXPRESSIVE_PLAYLISTS: _ClassVar[ExtensionKind]
+    DYNAMIC_SHOW_EPISODE: _ClassVar[ExtensionKind]
+    LIVE: _ClassVar[ExtensionKind]
+    SKIP_PLAYED: _ClassVar[ExtensionKind]
+    AD_BREAK_FREE_PODCASTS: _ClassVar[ExtensionKind]
+    ASSOCIATIONS: _ClassVar[ExtensionKind]
+    PLAYLIST_EVALUATION: _ClassVar[ExtensionKind]
+    CACHE_INVALIDATIONS: _ClassVar[ExtensionKind]
+    LIVESTREAM_ENTITY: _ClassVar[ExtensionKind]
+    SINGLE_TAP_REACTIONS: _ClassVar[ExtensionKind]
+    USER_COMMENTS: _ClassVar[ExtensionKind]
+    CLIENT_RESTRICTIONS: _ClassVar[ExtensionKind]
+    PODCAST_GUEST: _ClassVar[ExtensionKind]
+    PLAYABILITY: _ClassVar[ExtensionKind]
+    COVER_IMAGE: _ClassVar[ExtensionKind]
+    SHARE_TRAIT: _ClassVar[ExtensionKind]
+    INSTANCE_SHARING: _ClassVar[ExtensionKind]
+    ARTIST_TOUR: _ClassVar[ExtensionKind]
+    AUDIOBOOK_GENRE: _ClassVar[ExtensionKind]
+    CONCEPT: _ClassVar[ExtensionKind]
+    ORIGINAL_VIDEO: _ClassVar[ExtensionKind]
+    SMART_SHUFFLE: _ClassVar[ExtensionKind]
+    LIVE_EVENTS: _ClassVar[ExtensionKind]
+    AUDIOBOOK_RELATIONS: _ClassVar[ExtensionKind]
+    HOME_POC_BASECARD: _ClassVar[ExtensionKind]
+    AUDIOBOOK_SUPPLEMENTS: _ClassVar[ExtensionKind]
+    PAID_PODCAST_BANNER: _ClassVar[ExtensionKind]
+    FEWER_ADS: _ClassVar[ExtensionKind]
+    WATCH_FEED_SHOW_EXPLORER: _ClassVar[ExtensionKind]
+    TRACK_EXTRA_DESCRIPTORS: _ClassVar[ExtensionKind]
+    TRACK_EXTRA_AUDIO_ATTRIBUTES: _ClassVar[ExtensionKind]
+    TRACK_EXTENDED_CREDITS: _ClassVar[ExtensionKind]
+    SIMPLE_TRAIT: _ClassVar[ExtensionKind]
+    AUDIO_ASSOCIATIONS: _ClassVar[ExtensionKind]
+    VIDEO_ASSOCIATIONS: _ClassVar[ExtensionKind]
+    PLAYLIST_TUNER: _ClassVar[ExtensionKind]
+    ARTIST_VIDEOS_ENTRYPOINT: _ClassVar[ExtensionKind]
+    ALBUM_PRERELEASE: _ClassVar[ExtensionKind]
+    CONTENT_ALTERNATIVES: _ClassVar[ExtensionKind]
+    SNAPSHOT_SHARING: _ClassVar[ExtensionKind]
+    DISPLAY_SEGMENTS_COUNT: _ClassVar[ExtensionKind]
+    PODCAST_FEATURED_EPISODE: _ClassVar[ExtensionKind]
+    PODCAST_SPONSORED_CONTENT: _ClassVar[ExtensionKind]
+    PODCAST_EPISODE_TOPICS_LLM: _ClassVar[ExtensionKind]
+    PODCAST_EPISODE_TOPICS_KG: _ClassVar[ExtensionKind]
+    EPISODE_RANKING_POPULARITY: _ClassVar[ExtensionKind]
+    MERCH: _ClassVar[ExtensionKind]
+    COMPANION_CONTENT: _ClassVar[ExtensionKind]
+    WATCH_FEED_ENTITY_EXPLORER: _ClassVar[ExtensionKind]
+    ANCHOR_CARD_TRAIT: _ClassVar[ExtensionKind]
+    AUDIO_PREVIEW_PLAYBACK_TRAIT: _ClassVar[ExtensionKind]
+    VIDEO_PREVIEW_STILL_TRAIT: _ClassVar[ExtensionKind]
+    PREVIEW_CARD_TRAIT: _ClassVar[ExtensionKind]
+    SHORTCUTS_CARD_TRAIT: _ClassVar[ExtensionKind]
+    VIDEO_PREVIEW_PLAYBACK_TRAIT: _ClassVar[ExtensionKind]
+    COURSE_SPECIFICS: _ClassVar[ExtensionKind]
+    CONCERT: _ClassVar[ExtensionKind]
+    CONCERT_LOCATION: _ClassVar[ExtensionKind]
+    CONCERT_MARKETING: _ClassVar[ExtensionKind]
+    CONCERT_PERFORMERS: _ClassVar[ExtensionKind]
+    TRACK_PAIR_TRANSITION: _ClassVar[ExtensionKind]
+    CONTENT_TYPE_TRAIT: _ClassVar[ExtensionKind]
+    NAME_TRAIT: _ClassVar[ExtensionKind]
+    ARTWORK_TRAIT: _ClassVar[ExtensionKind]
+    RELEASE_DATE_TRAIT: _ClassVar[ExtensionKind]
+    CREDITS_TRAIT: _ClassVar[ExtensionKind]
+    RELEASE_URI_TRAIT: _ClassVar[ExtensionKind]
+    ENTITY_CAPPING: _ClassVar[ExtensionKind]
+    LESSON_SPECIFICS: _ClassVar[ExtensionKind]
+    CONCERT_OFFERS: _ClassVar[ExtensionKind]
+    TRANSITION_MAPS: _ClassVar[ExtensionKind]
+    ARTIST_HAS_CONCERTS: _ClassVar[ExtensionKind]
+    PRERELEASE: _ClassVar[ExtensionKind]
+    PLAYLIST_ATTRIBUTES_V2: _ClassVar[ExtensionKind]
+    LIST_ATTRIBUTES_V2: _ClassVar[ExtensionKind]
+    LIST_METADATA: _ClassVar[ExtensionKind]
+    LIST_TUNER_AUDIO_ANALYSIS: _ClassVar[ExtensionKind]
+    LIST_TUNER_CUEPOINTS: _ClassVar[ExtensionKind]
+    CONTENT_RATING_TRAIT: _ClassVar[ExtensionKind]
+    COPYRIGHT_TRAIT: _ClassVar[ExtensionKind]
+    SUPPORTED_BADGES: _ClassVar[ExtensionKind]
+    BADGES: _ClassVar[ExtensionKind]
+    PREVIEW_TRAIT: _ClassVar[ExtensionKind]
+    ROOTLISTABILITY_TRAIT: _ClassVar[ExtensionKind]
+    LOCAL_CONCERTS: _ClassVar[ExtensionKind]
+    RECOMMENDED_PLAYLISTS: _ClassVar[ExtensionKind]
+    POPULAR_RELEASES: _ClassVar[ExtensionKind]
+    RELATED_RELEASES: _ClassVar[ExtensionKind]
+    SHARE_RESTRICTIONS: _ClassVar[ExtensionKind]
+    CONCERT_OFFER: _ClassVar[ExtensionKind]
+    CONCERT_OFFER_PROVIDER: _ClassVar[ExtensionKind]
+    ENTITY_BOOKMARKS: _ClassVar[ExtensionKind]
+    PRIVACY_TRAIT: _ClassVar[ExtensionKind]
+    DUPLICATE_ITEMS_TRAIT: _ClassVar[ExtensionKind]
+    REORDERING_TRAIT: _ClassVar[ExtensionKind]
+    PODCAST_RESUMPTION_SEGMENTS: _ClassVar[ExtensionKind]
+    ARTIST_EXPRESSION_VIDEO: _ClassVar[ExtensionKind]
+    PRERELEASE_VIDEO: _ClassVar[ExtensionKind]
+    GATED_ENTITY_RELATIONS: _ClassVar[ExtensionKind]
+    RELATED_CREATORS_SECTION: _ClassVar[ExtensionKind]
+    CREATORS_APPEARS_ON_SECTION: _ClassVar[ExtensionKind]
+    PROMO_V1_TRAIT: _ClassVar[ExtensionKind]
+    SPEECHLESS_SHARE_CARD: _ClassVar[ExtensionKind]
+    TOP_PLAYABLES_SECTION: _ClassVar[ExtensionKind]
+    AUTO_LENS: _ClassVar[ExtensionKind]
+    PROMO_V3_TRAIT: _ClassVar[ExtensionKind]
+    TRACK_CONTENT_FILTER: _ClassVar[ExtensionKind]
+    HIGHLIGHTABILITY: _ClassVar[ExtensionKind]
+    LINK_CARD_WITH_IMAGE_TRAIT: _ClassVar[ExtensionKind]
+    TRACK_CLOUD_SECTION: _ClassVar[ExtensionKind]
+    EPISODE_TOPICS: _ClassVar[ExtensionKind]
+    VIDEO_THUMBNAIL: _ClassVar[ExtensionKind]
+    IDENTITY_TRAIT: _ClassVar[ExtensionKind]
+    VISUAL_IDENTITY_TRAIT: _ClassVar[ExtensionKind]
+    CONTENT_TYPE_V2_TRAIT: _ClassVar[ExtensionKind]
+    PREVIEW_PLAYBACK_TRAIT: _ClassVar[ExtensionKind]
+    CONSUMPTION_EXPERIENCE_TRAIT: _ClassVar[ExtensionKind]
+    PUBLISHING_METADATA_TRAIT: _ClassVar[ExtensionKind]
+    DETAILED_EVALUATION_TRAIT: _ClassVar[ExtensionKind]
+    ON_PLATFORM_REPUTATION_TRAIT: _ClassVar[ExtensionKind]
+    CREDITS_V2_TRAIT: _ClassVar[ExtensionKind]
+    HIGHLIGHT_PLAYABILITY_TRAIT: _ClassVar[ExtensionKind]
+    SHOW_EPISODE_LIST: _ClassVar[ExtensionKind]
+    AVAILABLE_RELEASES: _ClassVar[ExtensionKind]
+    PLAYLIST_DESCRIPTORS: _ClassVar[ExtensionKind]
+    LINK_CARD_WITH_ANIMATIONS_TRAIT: _ClassVar[ExtensionKind]
+    RECAP: _ClassVar[ExtensionKind]
+    AUDIOBOOK_COMPANION_CONTENT: _ClassVar[ExtensionKind]
+    THREE_OH_THREE_PLAY_TRAIT: _ClassVar[ExtensionKind]
+    ARTIST_WRAPPED_2024_VIDEO: _ClassVar[ExtensionKind]
+UNKNOWN_EXTENSION: ExtensionKind
+CANVAZ: ExtensionKind
+STORYLINES: ExtensionKind
+PODCAST_TOPICS: ExtensionKind
+PODCAST_SEGMENTS: ExtensionKind
+AUDIO_FILES: ExtensionKind
+TRACK_DESCRIPTOR: ExtensionKind
+PODCAST_COUNTER: ExtensionKind
+ARTIST_V4: ExtensionKind
+ALBUM_V4: ExtensionKind
+TRACK_V4: ExtensionKind
+SHOW_V4: ExtensionKind
+EPISODE_V4: ExtensionKind
+PODCAST_HTML_DESCRIPTION: ExtensionKind
+PODCAST_QUOTES: ExtensionKind
+USER_PROFILE: ExtensionKind
+CANVAS_V1: ExtensionKind
+SHOW_V4_BASE: ExtensionKind
+SHOW_V4_EPISODES_ASSOC: ExtensionKind
+TRACK_DESCRIPTOR_SIGNATURES: ExtensionKind
+PODCAST_AD_SEGMENTS: ExtensionKind
+EPISODE_TRANSCRIPTS: ExtensionKind
+PODCAST_SUBSCRIPTIONS: ExtensionKind
+EXTRACTED_COLOR: ExtensionKind
+PODCAST_VIRALITY: ExtensionKind
+IMAGE_SPARKLES_HACK: ExtensionKind
+PODCAST_POPULARITY_HACK: ExtensionKind
+AUTOMIX_MODE: ExtensionKind
+CUEPOINTS: ExtensionKind
+PODCAST_POLL: ExtensionKind
+EPISODE_ACCESS: ExtensionKind
+SHOW_ACCESS: ExtensionKind
+PODCAST_QNA: ExtensionKind
+CLIPS: ExtensionKind
+SHOW_V5: ExtensionKind
+EPISODE_V5: ExtensionKind
+PODCAST_CTA_CARDS: ExtensionKind
+PODCAST_RATING: ExtensionKind
+DISPLAY_SEGMENTS: ExtensionKind
+GREENROOM: ExtensionKind
+USER_CREATED: ExtensionKind
+SHOW_DESCRIPTION: ExtensionKind
+SHOW_HTML_DESCRIPTION: ExtensionKind
+SHOW_PLAYABILITY: ExtensionKind
+EPISODE_DESCRIPTION: ExtensionKind
+EPISODE_HTML_DESCRIPTION: ExtensionKind
+EPISODE_PLAYABILITY: ExtensionKind
+SHOW_EPISODES_ASSOC: ExtensionKind
+CLIENT_CONFIG: ExtensionKind
+PLAYLISTABILITY: ExtensionKind
+AUDIOBOOK_V5: ExtensionKind
+CHAPTER_V5: ExtensionKind
+AUDIOBOOK_SPECIFICS: ExtensionKind
+EPISODE_RANKING: ExtensionKind
+HTML_DESCRIPTION: ExtensionKind
+CREATOR_CHANNEL: ExtensionKind
+AUDIOBOOK_PROVIDERS: ExtensionKind
+PLAY_TRAIT: ExtensionKind
+CONTENT_WARNING: ExtensionKind
+IMAGE_CUE: ExtensionKind
+STREAM_COUNT: ExtensionKind
+AUDIO_ATTRIBUTES: ExtensionKind
+NAVIGABLE_TRAIT: ExtensionKind
+NEXT_BEST_EPISODE: ExtensionKind
+AUDIOBOOK_PRICE: ExtensionKind
+EXPRESSIVE_PLAYLISTS: ExtensionKind
+DYNAMIC_SHOW_EPISODE: ExtensionKind
+LIVE: ExtensionKind
+SKIP_PLAYED: ExtensionKind
+AD_BREAK_FREE_PODCASTS: ExtensionKind
+ASSOCIATIONS: ExtensionKind
+PLAYLIST_EVALUATION: ExtensionKind
+CACHE_INVALIDATIONS: ExtensionKind
+LIVESTREAM_ENTITY: ExtensionKind
+SINGLE_TAP_REACTIONS: ExtensionKind
+USER_COMMENTS: ExtensionKind
+CLIENT_RESTRICTIONS: ExtensionKind
+PODCAST_GUEST: ExtensionKind
+PLAYABILITY: ExtensionKind
+COVER_IMAGE: ExtensionKind
+SHARE_TRAIT: ExtensionKind
+INSTANCE_SHARING: ExtensionKind
+ARTIST_TOUR: ExtensionKind
+AUDIOBOOK_GENRE: ExtensionKind
+CONCEPT: ExtensionKind
+ORIGINAL_VIDEO: ExtensionKind
+SMART_SHUFFLE: ExtensionKind
+LIVE_EVENTS: ExtensionKind
+AUDIOBOOK_RELATIONS: ExtensionKind
+HOME_POC_BASECARD: ExtensionKind
+AUDIOBOOK_SUPPLEMENTS: ExtensionKind
+PAID_PODCAST_BANNER: ExtensionKind
+FEWER_ADS: ExtensionKind
+WATCH_FEED_SHOW_EXPLORER: ExtensionKind
+TRACK_EXTRA_DESCRIPTORS: ExtensionKind
+TRACK_EXTRA_AUDIO_ATTRIBUTES: ExtensionKind
+TRACK_EXTENDED_CREDITS: ExtensionKind
+SIMPLE_TRAIT: ExtensionKind
+AUDIO_ASSOCIATIONS: ExtensionKind
+VIDEO_ASSOCIATIONS: ExtensionKind
+PLAYLIST_TUNER: ExtensionKind
+ARTIST_VIDEOS_ENTRYPOINT: ExtensionKind
+ALBUM_PRERELEASE: ExtensionKind
+CONTENT_ALTERNATIVES: ExtensionKind
+SNAPSHOT_SHARING: ExtensionKind
+DISPLAY_SEGMENTS_COUNT: ExtensionKind
+PODCAST_FEATURED_EPISODE: ExtensionKind
+PODCAST_SPONSORED_CONTENT: ExtensionKind
+PODCAST_EPISODE_TOPICS_LLM: ExtensionKind
+PODCAST_EPISODE_TOPICS_KG: ExtensionKind
+EPISODE_RANKING_POPULARITY: ExtensionKind
+MERCH: ExtensionKind
+COMPANION_CONTENT: ExtensionKind
+WATCH_FEED_ENTITY_EXPLORER: ExtensionKind
+ANCHOR_CARD_TRAIT: ExtensionKind
+AUDIO_PREVIEW_PLAYBACK_TRAIT: ExtensionKind
+VIDEO_PREVIEW_STILL_TRAIT: ExtensionKind
+PREVIEW_CARD_TRAIT: ExtensionKind
+SHORTCUTS_CARD_TRAIT: ExtensionKind
+VIDEO_PREVIEW_PLAYBACK_TRAIT: ExtensionKind
+COURSE_SPECIFICS: ExtensionKind
+CONCERT: ExtensionKind
+CONCERT_LOCATION: ExtensionKind
+CONCERT_MARKETING: ExtensionKind
+CONCERT_PERFORMERS: ExtensionKind
+TRACK_PAIR_TRANSITION: ExtensionKind
+CONTENT_TYPE_TRAIT: ExtensionKind
+NAME_TRAIT: ExtensionKind
+ARTWORK_TRAIT: ExtensionKind
+RELEASE_DATE_TRAIT: ExtensionKind
+CREDITS_TRAIT: ExtensionKind
+RELEASE_URI_TRAIT: ExtensionKind
+ENTITY_CAPPING: ExtensionKind
+LESSON_SPECIFICS: ExtensionKind
+CONCERT_OFFERS: ExtensionKind
+TRANSITION_MAPS: ExtensionKind
+ARTIST_HAS_CONCERTS: ExtensionKind
+PRERELEASE: ExtensionKind
+PLAYLIST_ATTRIBUTES_V2: ExtensionKind
+LIST_ATTRIBUTES_V2: ExtensionKind
+LIST_METADATA: ExtensionKind
+LIST_TUNER_AUDIO_ANALYSIS: ExtensionKind
+LIST_TUNER_CUEPOINTS: ExtensionKind
+CONTENT_RATING_TRAIT: ExtensionKind
+COPYRIGHT_TRAIT: ExtensionKind
+SUPPORTED_BADGES: ExtensionKind
+BADGES: ExtensionKind
+PREVIEW_TRAIT: ExtensionKind
+ROOTLISTABILITY_TRAIT: ExtensionKind
+LOCAL_CONCERTS: ExtensionKind
+RECOMMENDED_PLAYLISTS: ExtensionKind
+POPULAR_RELEASES: ExtensionKind
+RELATED_RELEASES: ExtensionKind
+SHARE_RESTRICTIONS: ExtensionKind
+CONCERT_OFFER: ExtensionKind
+CONCERT_OFFER_PROVIDER: ExtensionKind
+ENTITY_BOOKMARKS: ExtensionKind
+PRIVACY_TRAIT: ExtensionKind
+DUPLICATE_ITEMS_TRAIT: ExtensionKind
+REORDERING_TRAIT: ExtensionKind
+PODCAST_RESUMPTION_SEGMENTS: ExtensionKind
+ARTIST_EXPRESSION_VIDEO: ExtensionKind
+PRERELEASE_VIDEO: ExtensionKind
+GATED_ENTITY_RELATIONS: ExtensionKind
+RELATED_CREATORS_SECTION: ExtensionKind
+CREATORS_APPEARS_ON_SECTION: ExtensionKind
+PROMO_V1_TRAIT: ExtensionKind
+SPEECHLESS_SHARE_CARD: ExtensionKind
+TOP_PLAYABLES_SECTION: ExtensionKind
+AUTO_LENS: ExtensionKind
+PROMO_V3_TRAIT: ExtensionKind
+TRACK_CONTENT_FILTER: ExtensionKind
+HIGHLIGHTABILITY: ExtensionKind
+LINK_CARD_WITH_IMAGE_TRAIT: ExtensionKind
+TRACK_CLOUD_SECTION: ExtensionKind
+EPISODE_TOPICS: ExtensionKind
+VIDEO_THUMBNAIL: ExtensionKind
+IDENTITY_TRAIT: ExtensionKind
+VISUAL_IDENTITY_TRAIT: ExtensionKind
+CONTENT_TYPE_V2_TRAIT: ExtensionKind
+PREVIEW_PLAYBACK_TRAIT: ExtensionKind
+CONSUMPTION_EXPERIENCE_TRAIT: ExtensionKind
+PUBLISHING_METADATA_TRAIT: ExtensionKind
+DETAILED_EVALUATION_TRAIT: ExtensionKind
+ON_PLATFORM_REPUTATION_TRAIT: ExtensionKind
+CREDITS_V2_TRAIT: ExtensionKind
+HIGHLIGHT_PLAYABILITY_TRAIT: ExtensionKind
+SHOW_EPISODE_LIST: ExtensionKind
+AVAILABLE_RELEASES: ExtensionKind
+PLAYLIST_DESCRIPTORS: ExtensionKind
+LINK_CARD_WITH_ANIMATIONS_TRAIT: ExtensionKind
+RECAP: ExtensionKind
+AUDIOBOOK_COMPANION_CONTENT: ExtensionKind
+THREE_OH_THREE_PLAY_TRAIT: ExtensionKind
+ARTIST_WRAPPED_2024_VIDEO: ExtensionKind

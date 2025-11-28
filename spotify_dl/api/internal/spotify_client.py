@@ -1,19 +1,20 @@
 import base64
 import io
-import json
 import logging
 import os
 import socket
 import struct
-import threading
 import time
 import uuid
 
-from typing import Self, cast, TypedDict
+from typing import Self, TypeGuard, cast, TypedDict, override
 from Cryptodome.Hash import HMAC, SHA1
 from Cryptodome.PublicKey import RSA
 from Cryptodome.Signature import PKCS1_v1_5
 
+from spotify_dl.auth.auth_provider import AuthProvider
+from spotify_dl.auth.web_auth import SpotifyAuthPKCE
+from spotify_dl.key_provider import KeyProvider
 from spotify_dl.api.web.apresolve import get_accesspoint
 from spotify_dl.utils.connection import SocketConnection
 from spotify_dl.utils.crypto import DHKey
@@ -53,7 +54,7 @@ class ReusableSchema(TypedDict):
     credentials: str
 
 
-class SpotifyClient:
+class SpotifyClient(AuthProvider[ReusableSchema], KeyProvider):
     logger: logging.Logger = logging.getLogger("spdl:client")
 
     SERVER_KEY: int = (
@@ -65,32 +66,101 @@ class SpotifyClient:
         self,
         addr: str,
         port: int,
-        reusable_path: str = ".reusable_credentials.json",
+        auth: SpotifyAuthPKCE,
     ) -> None:
-        self.reusable_path: str = reusable_path
+        super().__init__(key="spclient")
         self.addr: str = addr
         self.port: int = port
+        self.auth: SpotifyAuthPKCE = auth
         self.conn: SocketConnection = SocketConnection(addr, port)
+        self.device_id: str = str(uuid.uuid4())
 
         self.key: DHKey = DHKey()
         self.seq: int = 0
 
-        self.cipher: CipherPair
-        self._lock: threading.Lock = threading.Lock()
+        self.cipher: CipherPair | None = None
+        self.authenticated: bool = False
+
+    @property
+    @override
+    def token(self) -> str:
+        if not self.is_token_valid(self._token):
+            if self.authenticated:
+                self.refresh_token()
+            else:
+                self.handshake()
+                self.authenticate_with_token()
+
+        if not self._token:
+            raise
+
+        return self._token["credentials"]
+
+    @property
+    def reusable(self) -> ReusableSchema:
+        if not self.is_token_valid(self._token):
+            if self.authenticated:
+                self.refresh_token()
+            else:
+                self.handshake()
+                self.authenticate_with_token()
+
+        if not self._token:
+            raise
+
+        return self._token
+
+    @override
+    def is_token_expired(self, token: ReusableSchema | None = None) -> bool:
+        token = token or self._token
+        return not token
+
+    @override
+    def is_token_valid(
+        self, token: ReusableSchema | None = None
+    ) -> TypeGuard[ReusableSchema]:
+        token = token or self._token
+        return bool(token and token["credentials"] and token["username"])
+
+    @override
+    def refresh_token(self) -> None:
+        self.conn.close()
+        self._save(None)
+        self.cipher = None
+
+        aps = get_accesspoint()
+        connected = False
+        for addr, port in random_order(aps):
+            try:
+                self.conn = SocketConnection(addr, port)
+                self.addr = addr
+                self.port = port
+                connected = True
+                break
+            except ConnectionRefusedError:
+                time.sleep(0.5)
+
+        if not connected:
+            raise ConnectionRefusedError("Could not reconnect to spotify server")
+
+        self.handshake()
+        self.authenticate_with_token()
 
     @classmethod
-    def connect_retry(cls, addr: str, port: int, max_retry: int = 5) -> Self | None:
+    def connect_retry(
+        cls, addr: str, port: int, auth: SpotifyAuthPKCE, max_retry: int = 5
+    ) -> Self | None:
         for _ in range(max_retry, 0, -1):
             try:
-                return cls(addr, port)
+                return cls(addr, port, auth)
             except ConnectionRefusedError:
-                time.sleep(0.2)
+                time.sleep(0.5)
 
     @classmethod
-    def random_ap(cls) -> Self:
+    def random_ap(cls, auth: SpotifyAuthPKCE) -> Self:
         aps = get_accesspoint()
         for addr, port in random_order(aps):
-            client = cls.connect_retry(addr, port)
+            client = cls.connect_retry(addr, port, auth)
             if client:
                 return client
 
@@ -196,31 +266,27 @@ class SpotifyClient:
 
         self.logger.info(f"SUCCESSFULLY CONNECTED")
 
-    def authenticate(self, access_token: bytes) -> None:
-        if not os.path.exists(self.reusable_path):
-            self.authenticate_with_token(access_token)
-        else:
+    def authenticate(self) -> None:
+        if self.is_token_valid():
             self.authenticate_with_reusable()
+        else:
+            self.authenticate_with_token()
 
-    def authenticate_with_token(self, access_token: bytes) -> None:
+    def authenticate_with_token(self) -> None:
         self._authenticate(
             None,
-            access_token,
+            self.auth.token.encode("utf-8"),
             AuthenticationType.AUTHENTICATION_SPOTIFY_TOKEN,
         )
 
     def authenticate_with_reusable(self) -> None:
-        if not os.path.exists(self.reusable_path):
-            raise FileNotFoundError(
-                "No reusable found, authenticate with other methods first"
-            )
-
-        with open(self.reusable_path, "r") as f:
-            reusable = cast(ReusableSchema, json.load(f))
+        if not self.is_token_valid():
+            self.authenticate_with_token()
+            return
 
         self._authenticate(
-            reusable["username"],
-            base64.b64decode(reusable["credentials"].encode("utf-8")),
+            self.reusable["username"],
+            base64.b64decode(self.reusable["credentials"].encode("utf-8")),
             AuthenticationType.AUTHENTICATION_STORED_SPOTIFY_CREDENTIALS,
         )
 
@@ -230,6 +296,9 @@ class SpotifyClient:
         credentials: bytes,
         type: AuthenticationType,
     ) -> None:
+        if not self.cipher:
+            raise ValueError("cipher is not initialized, is the handshake successful?")
+
         resp = ClientResponseEncrypted(
             login_credentials=LoginCredentials(
                 username=username,
@@ -240,7 +309,7 @@ class SpotifyClient:
                 cpu_family=CpuFamily.CPU_UNKNOWN,
                 os=Os.OS_UNKNOWN,
                 system_information_string="libspot",
-                device_id=str(uuid.uuid4()),
+                device_id=self.device_id,
             ),
             version_string="0.0.1",
         )
@@ -251,26 +320,18 @@ class SpotifyClient:
         if packet.type == PacketType.ap_welcome:
             self.logger.info("AUTHENTICATED")
 
-            welcome = APWelcome()
-            _ = welcome.ParseFromString(packet.payload)
-            bytes0x0f = os.urandom(0x14)
-            self.cipher.send_encoded(self.conn, PacketType.unknown_0x0f, bytes0x0f)
-            preferred_locale = bytearray()
-            preferred_locale.extend(b"\x00\x00\x10\x00\x02preferred-localeen")
-            self.cipher.send_encoded(
-                self.conn, PacketType.preferred_locale, bytes(preferred_locale)
-            )
+            ap_welcome = APWelcome()
+            _ = ap_welcome.ParseFromString(packet.payload)
 
-            with open(self.reusable_path, "w") as f:
-                login_data = {
-                    "username": welcome.canonical_username,
+            self._save(
+                {
+                    "username": ap_welcome.canonical_username,
                     "credentials": base64.b64encode(
-                        welcome.reusable_auth_credentials
+                        ap_welcome.reusable_auth_credentials
                     ).decode(),
                 }
-
-                json.dump(login_data, f)
-
+            )
+            self.authenticated = True
         elif packet.type == PacketType.auth_failure:
             login_failed = APLoginFailed()
             _ = login_failed.ParseFromString(packet.payload)
@@ -278,36 +339,40 @@ class SpotifyClient:
         else:
             raise RuntimeError(f"Unknown CMD {PacketType.get_name(packet.type)}")
 
-    def get_audio_key(self, gid: bytes, file_id: bytes) -> bytes:
-        with self._lock:
-            buf = bytearray()
-            buf.extend(file_id)
-            buf.extend(gid)
-            buf.extend(struct.pack(">I", self.seq))
-            buf.extend(b"\x00\x00")
-            self.seq += 1
+    @override
+    def get_audio_key(self, gid: bytes, file_id: bytes) -> bytes | None:
+        if not self.cipher:
+            raise ValueError("cipher is not initialized, is the handshake successful?")
 
-            self.cipher.send_encoded(self.conn, PacketType.request_key, bytes(buf))
+        buf = bytearray()
+        buf.extend(file_id)
+        buf.extend(gid)
+        buf.extend(struct.pack(">I", self.seq))
+        buf.extend(b"\x00\x00")
+        self.seq += 1
 
-            while True:
-                packet = self.cipher.recv_encoded(self.conn)
-                self.logger.debug(packet)
+        self.cipher.send_encoded(self.conn, PacketType.request_key, bytes(buf))
 
-                if packet.type in (PacketType.aes_key, PacketType.aes_key_error):
-                    payload = io.BytesIO(packet.payload)
-                    seq = cast(int, struct.unpack(">i", payload.read(4))[0])
-                    self.logger.debug(f"SEQ: {seq}")
-                    if packet.type == PacketType.aes_key:
-                        return payload.read(16)
-                    elif packet.type == PacketType.aes_key_error:
-                        code = cast(int, struct.unpack(">H", payload.read(2))[0])
-                        raise RuntimeError(
-                            f"Failed to get aes key, code: {code}. Track codec possibly gated behind premium user"
-                        )
-                else:
-                    if packet.type == PacketType.ping:
-                        self.cipher.send_encoded(
-                            self.conn,
-                            PacketType.pong,
-                            b"\x00\x00\x00\x00",
-                        )
+        while True:
+            packet = self.cipher.recv_encoded(self.conn)
+            self.logger.debug(packet)
+
+            if packet.type in (PacketType.aes_key, PacketType.aes_key_error):
+                payload = io.BytesIO(packet.payload)
+                seq = cast(int, struct.unpack(">i", payload.read(4))[0])
+                self.logger.debug(f"SEQ: {seq}")
+                if packet.type == PacketType.aes_key:
+                    return payload.read(16)
+                elif packet.type == PacketType.aes_key_error:
+                    code = cast(int, struct.unpack(">H", payload.read(2))[0])
+                    self.logger.error(
+                        f"Failed to get aes key, code: {code}. Track codec possibly gated behind premium user, continuing without a key (encrypted)"
+                    )
+                    return
+            else:
+                if packet.type == PacketType.ping:
+                    self.cipher.send_encoded(
+                        self.conn,
+                        PacketType.pong,
+                        b"\x00\x00\x00\x00",
+                    )

@@ -3,14 +3,14 @@
 from typing import Any, override
 import requests
 
-from spotify_dl.auth.protocol import AuthProtocol
+from spotify_dl.auth.auth_provider import AuthProvider
 
 
 class Session(requests.Session):
-    def __init__(self, auth: AuthProtocol) -> None:
+    def __init__(self, auth: AuthProvider[Any]) -> None:
         super().__init__()
 
-        self._auth: AuthProtocol = auth
+        self._auth: AuthProvider[Any] = auth
 
     @override
     def request(self, *args: Any, **kwargs: Any) -> requests.Response:

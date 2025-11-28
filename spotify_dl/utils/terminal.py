@@ -8,26 +8,16 @@ from collections.abc import Sequence, Mapping, ItemsView
 
 
 def realwidth(s: str) -> int:
-    """
-    Compute the display width of a string, taking into account wide characters.
-    """
     return wcwidth.wcswidth(s) or 0
 
 
 def to_text(obj: Any) -> str:
-    """
-    Convert any object to a string representation for display.
-    Uses the raw string for str, repr() for others.
-    """
     if isinstance(obj, str):
         return obj
     return repr(obj)
 
 
 def get_max_width(texts: Iterable[str]) -> int:
-    """
-    Return the maximum display width among a collection of strings.
-    """
     return max((realwidth(t) for t in texts), default=0)
 
 
@@ -103,5 +93,4 @@ def print_table(
                 print(f"{prefix}{ktext.ljust(key_width)} : {vtext}")
         return
 
-    # 3) Fallback for primitives
     print(f"{prefix}{to_text(data)}")

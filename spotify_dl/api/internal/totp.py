@@ -3,9 +3,8 @@ import hashlib
 import hmac
 import struct
 import time
+from typing import cast
 import requests
-
-from datetime import datetime
 
 from spotify_dl.utils.misc import url_build
 
@@ -31,33 +30,69 @@ def generate_totp(
 
     offset = hmac_digest[-1] & 0x0F
     code_bytes = hmac_digest[offset : offset + 4]
-    code_int: int = struct.unpack(">I", code_bytes)[0] & 0x7FFFFFFF
+    code_int = cast(int, struct.unpack(">I", code_bytes)[0] & 0x7FFFFFFF)
 
-    otp: int = code_int % (10**digits)
+    otp = cast(int, code_int % (10**digits))
     return str(otp).zfill(digits)
 
 
+def get_secret() -> tuple[int, list[int]]:
+    # please read https://github.com/librespot-org/librespot/discussions/1562#discussioncomment-14659870
+    # sudo docker run --rm misiektoja/spotify-secrets-grabber --secretbytes
+    return (
+        61,
+        [
+            44,
+            55,
+            47,
+            42,
+            70,
+            40,
+            34,
+            114,
+            76,
+            74,
+            50,
+            111,
+            120,
+            97,
+            75,
+            76,
+            94,
+            102,
+            43,
+            69,
+            49,
+            120,
+            118,
+            80,
+            64,
+            78,
+        ],
+    )
+
+
+def get_server_time() -> int:
+    response = requests.get("https://open.spotify.com/api/server-time")
+    response.raise_for_status()
+    return cast(int, response.json()["serverTime"])
+
+
 def create_otp_auth_url() -> str:
-    MAGIC = "GU2TANZRGQ2TQNJTGQ4DONBZHE2TSMRSGQ4DMMZQGMZDSMZUG4"
+    version, secret = get_secret()
+    transformed = [e ^ ((t % 33) + 9) for t, e in enumerate(secret)]
+    joined = "".join(str(num) for num in transformed)
+    hex_str = joined.encode().hex()
+    secret32 = base64.b32encode(bytes.fromhex(hex_str)).decode().rstrip("=")
 
-    res = requests.get("https://open.spotify.com/server-time")
-    res.raise_for_status()
-
-    server_time: int = res.json()["serverTime"]
-    client_time = int(time.time())
-
-    server_otp = generate_totp(MAGIC, 6, 30, server_time * 1000)
-    client_otp = generate_totp(MAGIC, 6, 30, client_time)
+    server_time = get_server_time()
+    otp = generate_totp(secret32, 6, 30, server_time)
 
     return url_build(
-        "https://open.spotify.com/get_access_token",
+        "https://open.spotify.com/api/token",
         reason="init",
         productType="web-player",
-        totp=client_otp,
-        totpServer=server_otp,
-        totpVer=5,
-        sTime=server_time,
-        cTime=client_time,
-        buildVer="web-player_2025-04-15_1744718071728_74d63e8",
-        buildDate=datetime.now().strftime("%Y-%m-%d"),
+        totp=otp,
+        totpServer=otp,
+        totpVer=version,
     )

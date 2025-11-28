@@ -1,4 +1,7 @@
 __pycache__/
 test.py
+test/
+*.wvd
+log.txt
 .*
 !.gitignore

@@ -1,4 +1,4 @@
-# pyright: reportAny=false, reportExplicitAny=false
+# pyright: reportAny=false, reportExplicitAny=false, reportUnknownVariableType=false
 
 # TODO: persistent state management
 # TODO: persistent download (allow for resuming interrupted download)
@@ -6,16 +6,44 @@
 # NOTE: spotify download is currently not working (for free user only i think), because of some change in their backend, i cannot get the audio key, nothing i can do about it unless someone finds a way around it
 # Issues: https://github.com/Googolplexed0/zotify/issues/86, https://github.com/DraftKinner/zotify/issues/95, https://github.com/kokarare1212/librespot-python/issues/315
 
+"""
+OGG_VORBIS_96 = 0; // playplay
+OGG_VORBIS_160 = 1; // playplay
+OGG_VORBIS_320 = 2; // playplay
+AAC_24 = 8; // playplay
+MP4_128 = 10; // widevine
+MP4_256 = 11; // widevine
+MP4_128_DUAL = 12; // playready / widevine
+MP4_256_DUAL = 13; // playready / widevine
+MP4_128_CBCS = 14; // fairplay
+MP4_256_CBCS = 15; // fairplay
+FLAC_FLAC = 16; // playplay
+MP4_FLAC = 17; // widevine
+FLAC_FLAC_24BIT = 22; // playplay
+"""
+
 import atexit
+from enum import StrEnum
+import glob
 import json
 import os
-from pprint import pprint
 import readline
 import argparse
 import shlex
 import logging
 import subprocess
 import yt_dlp
+from faker import Faker
+
+from spotify_dl.auth.clienttoken import ClientToken
+from spotify_dl.auth.login5 import Login5Auth
+from spotify_dl.key_provider import KeyProvider
+
+fake = Faker()
+
+import requests
+
+requests.utils.default_user_agent = lambda: fake.user_agent()
 
 from typing import Any, Callable, TypedDict, cast, override
 from pathlib import Path
@@ -24,7 +52,10 @@ from dataclasses import dataclass, field
 
 from yt_dlp.utils import DownloadError
 
+from spotify_dl.api.internal.playplay import PlayPlay
 from spotify_dl.api.internal.spotify_client import SpotifyClient
+from spotify_dl.api.internal.widevine import WidevineClient
+from spotify_dl.auth.internal_auth import SpotifyInternalAuth
 from spotify_dl.auth.web_auth import SpotifyAuthPKCE
 from spotify_dl.cli import CLI
 from spotify_dl.downloader import (
@@ -37,6 +68,13 @@ from spotify_dl.track import Track
 
 from spotify_dl.utils.terminal import print_table
 from spotify_dl.utils.ytdl import choose_best_audio_format
+
+
+# TODO: create a general key provider class so its not handled here
+class KeyRetrievalMethod(StrEnum):
+    SHANNON = "Shannon"
+    PLAYPLAY = "PlayPlay"
+    WIDEVINE = "Widevine"
 
 
 def get_username(auth: SpotifyAuthPKCE) -> str:
@@ -54,12 +92,13 @@ def get_username(auth: SpotifyAuthPKCE) -> str:
     return cast(dict[str, str], res.json()).get("display_name", "?")
 
 
-def prompt[T, K](
+def prompt[T](
     prompt: str,
     items: Iterable[T],
-    default: K | None = None,
-    repr_fun: Callable[[T, int], str] = lambda x, _: str(x),
-) -> T | K | None:
+    default: T | None = None,
+    repr_fun: Callable[[T, int | None], str] = lambda x, _: str(x),
+    greedy: bool = False,
+) -> T | None:
     items = list(items)
 
     for i, item in enumerate(items, 1):
@@ -67,7 +106,9 @@ def prompt[T, K](
 
     try:
         while True:
-            ans = input(prompt)
+            ans = input(
+                f"{prompt}{f' (default={repr_fun(default, None)})' if default else ''}: "
+            )
 
             if ans == "":
                 return default
@@ -75,6 +116,8 @@ def prompt[T, K](
             if not ans.isnumeric():
                 print(f"Invalid index")
                 continue
+            elif greedy:
+                return cast(T, ans)
 
             idx = int(ans)
             if idx > len(items) or idx < 1:
@@ -111,18 +154,53 @@ class CommandParser(argparse.ArgumentParser):
 @dataclass
 class AppState:
     auth: SpotifyAuthPKCE
+    iauth: SpotifyInternalAuth | None = None
     name: str | None = None
     client: SpotifyClient | None = None
     running: bool = True
-    last_json_output: Mapping[str, object] = field(default_factory=lambda: dict())
+    last_json_output: Mapping[str, object] | str = field(default_factory=lambda: dict())
     dir: Path | None = None
     download_manager: SpotifyDownloadManager = field(
         default_factory=lambda: SpotifyDownloadManager(concurrent_download=2)
     )
     volume: float = 100
+    widevine: WidevineClient | None = None
+    playplay: PlayPlay | None = None
+    login5: Login5Auth | None = None
+    clienttoken: ClientToken | None = None
 
 
 HISTORY_FILE = Path(".spotifydl_history")
+
+
+OPTIONS = [
+    "login",
+    "connect",
+    "con",
+    "info",
+    "info2",
+    "dl",
+    "as raw",
+    "exit",
+    "quit",
+    "yt-download",
+    "ytdl",
+    "download",
+    "dl",
+    "metadata",
+    "req",
+    "verbose",
+    "out",
+    "volume",
+]
+
+
+def completer(text: str, state: int) -> str | None:
+    matches = [o for o in OPTIONS if o.startswith(text)]
+    try:
+        return matches[state]
+    except IndexError:
+        return None
 
 
 def main() -> None:
@@ -130,6 +208,8 @@ def main() -> None:
     # logging.basicConfig(level=logging.INFO)
 
     _ = atexit.register(lambda: readline.write_history_file(HISTORY_FILE))
+    readline.set_completer(completer)
+    readline.parse_and_bind("tab: complete")
 
     if HISTORY_FILE.exists() and HISTORY_FILE.is_file():
         readline.read_history_file(HISTORY_FILE)
@@ -148,6 +228,7 @@ def main() -> None:
     state = AppState(
         auth=SpotifyAuthPKCE("user-read-private streaming"),
     )
+    state.iauth = SpotifyInternalAuth()
 
     state.name = get_username(state.auth)
     cli = CLI(state.download_manager)
@@ -182,10 +263,8 @@ def main() -> None:
                     continue
 
                 print("Connecting to Spotify...")
-                state.client = SpotifyClient.random_ap()
-                state.client.handshake()
-                state.client.authenticate(state.auth.token.encode("utf-8"))
-
+                state.client = SpotifyClient.random_ap(state.auth)
+                state.client.authenticate()
                 print(
                     f"Successfully connected to {state.client.addr}:{state.client.port}"
                 )
@@ -210,7 +289,7 @@ def main() -> None:
                     track = Track.probe(uri)
                     meta = track.get_metadata_internal(state.auth)
                     print_table(meta)
-                    state.last_json_output = meta
+                    state.last_json_output = repr(meta)
                 except Exception as e:
                     print(e)
             case ["as", "raw", *_]:
@@ -225,13 +304,13 @@ def main() -> None:
                 track = Track.probe(uri)
                 meta = track.get_metadata_internal(state.auth)
                 print(
-                    f"Downloading {meta['name']!r} from the album {meta['album']['name']!r} (duration={meta['duration']}) featuring {len(meta['artist'])} artists: ",
+                    f"Downloading {meta.name!r} from the album {meta.album.name!r} (duration={meta.duration}) featuring {len(meta.artist)} artists: ",
                     end="",
                 )
-                for i, artist in enumerate(meta["artist"]):
+                for i, artist in enumerate(meta.artist):
                     if i != 0:
                         print(", ", end="")
-                    print(f"{artist['name']}", end="")
+                    print(f"{artist.name}", end="")
                 print()
 
                 ydl_opts = {
@@ -249,10 +328,10 @@ def main() -> None:
                     "no_warnings": True,
                 }
 
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    artists = " ".join(artist["name"] for artist in meta["artist"])
+                with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+                    artists = " ".join(artist.name for artist in meta.artist)
                     info = ydl.extract_info(
-                        f"ytsearch5:{artists} {meta['name']}", download=False
+                        f"ytsearch5:{artists} {meta.name}", download=False
                     )
 
                     class Entry(TypedDict):
@@ -261,10 +340,10 @@ def main() -> None:
                         duration: int
                         views: int
                         url: str
-                        formats: list[dict]
+                        formats: list[dict[str, object]]
 
                     formatted: list[Entry] = []
-                    for entry in info["entries"]:
+                    for entry in cast(list[dict[str, object]], info.get("entries", [])):
                         artist = (
                             entry.get("artist")
                             or entry.get("uploader")
@@ -283,36 +362,46 @@ def main() -> None:
 
                         formatted.append(
                             {
-                                "artist": artist,
-                                "title": title,
-                                "duration": duration,
-                                "views": views,
-                                "url": url,
-                                "formats": formats,
+                                "artist": cast(str, artist),
+                                "title": cast(str, title),
+                                "duration": cast(int, duration),
+                                "views": cast(int, views),
+                                "url": cast(str, url),
+                                "formats": cast(list[dict[str, object]], formats),
                             }
                         )
 
                     entry = prompt(
-                        "Select the video: ",
+                        "Select the video",
                         formatted,
                         default=formatted[0],
                         repr_fun=lambda x, _: f"{x['artist']} - {x['title']} (duration={x['duration']:_} views={x['views']:_})",
                     )
 
+                    if not entry:
+                        continue
+
                     fmt = choose_best_audio_format(entry["formats"])
 
-                    out_name = f"{meta['name']} - {', '.join(a['name'] for a in meta['artist'])}.%(ext)s"
+                    out_name = f"{', '.join(a.name for a in meta.artist)} - {meta.name}.%(ext)s"
                     path = Path(out_name)
                     if state.dir:
                         path = state.dir.expanduser().absolute() / path
                     outtmpl = str(path)
 
-                    def hook(d):
+                    def hook(d: dict[str, object]) -> None:
                         if d.get("status") == "finished":
-                            downloaded = (
-                                d.get("filename")
-                                or d.get("info_dict", {}).get("_filename")
-                                or d.get("info_dict", {}).get("filepath")
+                            downloaded = cast(
+                                str | None,
+                                (
+                                    d.get("filename")
+                                    or cast(
+                                        dict[str, object], d.get("info_dict", {})
+                                    ).get("_filename")
+                                    or cast(
+                                        dict[str, object], d.get("info_dict", {})
+                                    ).get("filepath")
+                                ),
                             )
                             if not downloaded:
                                 print(
@@ -336,7 +425,7 @@ def main() -> None:
                                     str(out),
                                 ]
                                 try:
-                                    subprocess.run(
+                                    _ = subprocess.run(
                                         ffmpeg_cmd,
                                         check=True,
                                         stdout=subprocess.PIPE,
@@ -381,14 +470,14 @@ def main() -> None:
                     }
 
                     try:
-                        with yt_dlp.YoutubeDL(ydl_download_opts) as ydl2:
+                        with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
                             ydl2.download([entry["url"]])
                     except DownloadError as e:
                         print(
                             f"Requested format not available, falling back to 'bestaudio'. Error: {e}"
                         )
                         ydl_download_opts["format"] = "bestaudio"
-                        with yt_dlp.YoutubeDL(ydl_download_opts) as ydl2:
+                        with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
                             ydl2.download([entry["url"]])
 
             case ["download" | "dl", *rest]:
@@ -396,19 +485,51 @@ def main() -> None:
                     print("Not logged in")
                     continue
 
-                if not state.client:
-                    print("Client not connected (connect/con)")
-                    if input("Connect (Y/n)? ").lower() == "n":
+                print(
+                    "Warning: if you dont have premium account, you can't decrypt the audio stream from spotify client method"
+                )
+
+                method = prompt(
+                    "choose audio key retrieval method",
+                    [
+                        KeyRetrievalMethod.SHANNON,
+                        KeyRetrievalMethod.PLAYPLAY,
+                        KeyRetrievalMethod.WIDEVINE,
+                    ],
+                    default=KeyRetrievalMethod.WIDEVINE,
+                    repr_fun=lambda x, _: x.value,
+                )
+                if method == KeyRetrievalMethod.SHANNON:
+                    print("Connecting to Spotify...")
+                    state.client = SpotifyClient.random_ap(state.auth)
+                if method == KeyRetrievalMethod.PLAYPLAY:
+                    if not state.login5:
+                        if not state.client:
+                            state.client = SpotifyClient.random_ap(state.auth)
+
+                        if not state.clienttoken:
+                            state.clienttoken = ClientToken(state.client)
+
+                        state.login5 = Login5Auth(state.client, state.clienttoken)
+
+                    if not state.clienttoken:
+                        if not state.client:
+                            state.client = SpotifyClient.random_ap(state.auth)
+                        state.clienttoken = ClientToken(state.client)
+
+                    state.playplay = PlayPlay(state.login5, state.clienttoken)
+                elif method == KeyRetrievalMethod.WIDEVINE:
+                    print("NOTE: Widevine only supports mp4 format")
+                    print(
+                        "supply an extracted Widevine license, take a look at https://cdm-project.com/How-To/Dumping-L3-from-Android create an input the wvd file below (empty to abort)"
+                    )
+                    wvds = glob.glob("*.wvd", include_hidden=True)
+                    wvd = prompt("private key path", wvds, wvds[0], greedy=True)
+                    if not wvd:
+                        print("No wvd file supplied")
                         continue
 
-                    print("Connecting to Spotify...")
-                    state.client = SpotifyClient.random_ap()
-                    state.client.handshake()
-                    state.client.authenticate(state.auth.token.encode("utf-8"))
-
-                    print(
-                        f"Successfully connected to {state.client.addr}:{state.client.port}"
-                    )
+                    state.widevine = WidevineClient(state.iauth, wvd)
 
                 args = (
                     CommandParser()
@@ -424,23 +545,32 @@ def main() -> None:
                 track = Track.probe(args.uri)
                 meta = track.get_metadata_internal(state.auth)
                 print(
-                    f"Downloading {meta['name']!r} from the album {meta['album']['name']!r} featuring {len(meta['artist'])} artists: ",
+                    f"Downloading {meta.name!r} from the album {meta.album.name!r} featuring {len(meta.artist)} artists: ",
                     end="",
                 )
-                for i, artist in enumerate(meta["artist"]):
+                for i, artist in enumerate(meta.artist):
                     if i != 0:
                         print(", ", end="")
-                    print(f"{artist['name']}", end="")
+                    print(f"{artist.name}", end="")
                 print()
+
+                default_format_type = None
+                if method == KeyRetrievalMethod.WIDEVINE:
+                    default_format_type = AudioFormat.Type.MP4_128
+                elif method in (
+                    KeyRetrievalMethod.PLAYPLAY,
+                    KeyRetrievalMethod.SHANNON,
+                ):
+                    default_format_type = AudioFormat.Type.OGG_VORBIS_160
 
                 default_format = None
                 for format in track.get_formats(state.auth):
-                    if format.type == AudioFormat.Type.OGG_VORBIS_160:
+                    if format.type == default_format_type:
                         default_format = format
                         break
 
                 format = prompt(
-                    "Select track format (OGG_VORBIS_160): ",
+                    "Select track format",
                     track.get_formats(state.auth),
                     default=default_format,
                     repr_fun=lambda x, _: x.type.name,
@@ -451,18 +581,24 @@ def main() -> None:
                 track.set_format(format)
 
                 path = Path(
-                    f"{meta['name']} - {', '.join(a['name'] for a in meta['artist'])}.{AudioCodec.get_extension(format.get_codec())}"
+                    f"{', '.join(a.name for a in meta.artist)} - {meta.name}.{AudioCodec.get_extension(format.get_codec())}"
                 )
                 if args.output_directory:
                     path = Path(args.output_directory).expanduser().absolute() / path
                 elif state.dir:
                     path = state.dir.expanduser().absolute() / path
 
+                if not any([state.playplay, state.widevine, state.client]):
+                    raise RuntimeError("No auth provider selected")
+
                 state.download_manager.enqueue(
                     SpotifyDownloadParam(
                         track=track,
                         auth=state.auth,
-                        client=state.client,
+                        key_provider=cast(
+                            KeyProvider,
+                            state.playplay or state.widevine or state.client,
+                        ),
                         output=str(path),
                         emulate_playback=args.sim_play,
                     )
@@ -487,7 +623,7 @@ def main() -> None:
 
                 default_codec = AudioCodec.from_extension(Path(args.file).suffix)
                 codec = prompt(
-                    f"Choose the codec ({default_codec.name}): ",
+                    f"Choose the codec",
                     list(AudioCodec),
                     default=default_codec,
                     repr_fun=lambda x, _: x.name,

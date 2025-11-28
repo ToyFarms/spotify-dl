@@ -174,11 +174,33 @@ class EncryptedStream(ChunkedStream):
         return plaintext
 
 
-class SpotifyStream(EncryptedStream):
+class DecryptedSpotifyStream(EncryptedStream):
     AUDIO_IV: int = 152697175058892756956149811227012566419
 
     def __init__(self, url: str, key: bytes, max_cached_chunks: int = 16) -> None:
         super().__init__(url, key, self.AUDIO_IV, max_cached_chunks=max_cached_chunks)
+
+    def _read_rg(self) -> ReplayGain:
+        pos = self.pos
+        _ = self.seek(144)
+        rg = ReplayGain(
+            track_gain_db=struct.unpack("<f", self.read(4))[0],
+            track_peak=struct.unpack("<f", self.read(4))[0],
+            album_gain_db=struct.unpack("<f", self.read(4))[0],
+            album_peak=struct.unpack("<f", self.read(4))[0],
+        )
+
+        _ = self.seek(pos)
+        return rg
+
+    def read_header(self) -> TrackHeader:
+        return TrackHeader(
+            replaygain=self._read_rg(),
+        )
+
+class EncryptedSpotifyStream(ChunkedStream):
+    def __init__(self, url: str, max_cached_chunks: int = 16) -> None:
+        super().__init__(url, max_cached_chunks=max_cached_chunks)
 
     def _read_rg(self) -> ReplayGain:
         pos = self.pos

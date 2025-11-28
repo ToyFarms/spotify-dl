@@ -13,5 +13,20 @@ def get_accesspoint() -> list[tuple[str, int]]:
     return [(addr, int(port)) for addr, port in (ap.split(":", 1) for ap in urls)]
 
 
+def get_spclient() -> list[tuple[str, int]]:
+    res = requests.get("https://apresolve.spotify.com/?type=spclient")
+
+    json: dict[str, list[str]] = res.json()
+    urls = json.get("spclient", None)
+    if urls is None:
+        raise ValueError("No urls")
+
+    return [(addr, int(port)) for addr, port in (ap.split(":", 1) for ap in urls)]
+
+
 def get_random_accesspoint() -> tuple[str, int]:
     return random.choice(get_accesspoint())
+
+
+def get_random_spclient() -> tuple[str, int]:
+    return random.choice(get_spclient())

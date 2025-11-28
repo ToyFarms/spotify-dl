@@ -698,7 +698,7 @@ def apply_metadata(
                 data = urlopen(cover["url"])
                 provider.picture(data.read(), "Cover", ID3PictureType.FRONT_COVER)
 
-        if meta2.get("has_lyrics") and album.get("images"):
+        if meta2.has_lyrics and album.get("images"):
             url = url_build(
                 (
                     "https://spclient.wg.spotify.com/color-lyrics/v2/track/"

@@ -3,6 +3,8 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Self
 
+from spotify_dl.api.internal.proto import metadata_pb2 as Metadata
+
 
 class AudioCodec(Enum):
     UNKNOWN = auto()
@@ -224,6 +226,27 @@ class AudioFormat:
         MP4_256 = auto()
         MP4_256_DUAL = auto()
         MP4_128_DUAL = auto()
+
+        @classmethod
+        def from_proto(cls, fmt: Metadata.AudioFile.Format) -> Self:
+            mapping = {
+                Metadata.AudioFile.Format.OGG_VORBIS_96: AudioFormat.Type.OGG_VORBIS_96,
+                Metadata.AudioFile.Format.OGG_VORBIS_160: AudioFormat.Type.OGG_VORBIS_160,
+                Metadata.AudioFile.Format.OGG_VORBIS_320: AudioFormat.Type.OGG_VORBIS_320,
+                Metadata.AudioFile.Format.MP3_256: AudioFormat.Type.MP3_256,
+                Metadata.AudioFile.Format.MP3_320: AudioFormat.Type.MP3_320,
+                Metadata.AudioFile.Format.MP3_160: AudioFormat.Type.MP3_160,
+                Metadata.AudioFile.Format.MP3_96: AudioFormat.Type.MP3_96,
+                Metadata.AudioFile.Format.MP3_160_ENC: AudioFormat.Type.MP3_160_ENC,
+                Metadata.AudioFile.Format.AAC_24: AudioFormat.Type.AAC_24,
+                Metadata.AudioFile.Format.AAC_48: AudioFormat.Type.AAC_48,
+                Metadata.AudioFile.Format.FLAC_FLAC: AudioFormat.Type.FLAC_FLAC,
+                Metadata.AudioFile.Format.XHE_AAC_24: AudioFormat.Type.XHE_AAC_24,
+                Metadata.AudioFile.Format.XHE_AAC_16: AudioFormat.Type.XHE_AAC_16,
+                Metadata.AudioFile.Format.XHE_AAC_12: AudioFormat.Type.XHE_AAC_12,
+                Metadata.AudioFile.Format.FLAC_FLAC_24BIT: AudioFormat.Type.FLAC_FLAC_24BIT,
+            }
+            return cls(mapping.get(fmt, AudioFormat.Type.UNKNOWN))
 
     def __init__(self, type: AudioFormat.Type, file_id: str, gid: str) -> None:
         self.type: AudioFormat.Type = type

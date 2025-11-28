@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+
+set -xe
+
+protoc \
+	-I=./spotify_dl/api/internal/proto_src \
+	--python_out=./spotify_dl/api/internal/proto \
+	--pyi_out=./spotify_dl/api/internal/proto \
+	$(find spotify_dl/api/internal/proto_src -iname "*.proto")
+
+fix-protobuf-imports spotify_dl/api/internal/proto
+
+tree spotify_dl/api/internal/proto
+

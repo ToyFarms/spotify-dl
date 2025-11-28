@@ -2,7 +2,8 @@ from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
+from collections.abc import Iterable as _Iterable, Mapping as _Mapping
+from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -156,7 +157,7 @@ InvalidAppKey: ErrorCode
 ApplicationBanned: ErrorCode
 
 class ClientHello(_message.Message):
-    __slots__ = ("build_info", "fingerprints_supported", "cryptosuites_supported", "powschemes_supported", "login_crypto_hello", "client_nonce", "padding", "feature_set")
+    __slots__ = ()
     BUILD_INFO_FIELD_NUMBER: _ClassVar[int]
     FINGERPRINTS_SUPPORTED_FIELD_NUMBER: _ClassVar[int]
     CRYPTOSUITES_SUPPORTED_FIELD_NUMBER: _ClassVar[int]
@@ -176,7 +177,7 @@ class ClientHello(_message.Message):
     def __init__(self, build_info: _Optional[_Union[BuildInfo, _Mapping]] = ..., fingerprints_supported: _Optional[_Iterable[_Union[Fingerprint, str]]] = ..., cryptosuites_supported: _Optional[_Iterable[_Union[Cryptosuite, str]]] = ..., powschemes_supported: _Optional[_Iterable[_Union[Powscheme, str]]] = ..., login_crypto_hello: _Optional[_Union[LoginCryptoHelloUnion, _Mapping]] = ..., client_nonce: _Optional[bytes] = ..., padding: _Optional[bytes] = ..., feature_set: _Optional[_Union[FeatureSet, _Mapping]] = ...) -> None: ...
 
 class BuildInfo(_message.Message):
-    __slots__ = ("product", "product_flags", "platform", "version")
+    __slots__ = ()
     PRODUCT_FIELD_NUMBER: _ClassVar[int]
     PRODUCT_FLAGS_FIELD_NUMBER: _ClassVar[int]
     PLATFORM_FIELD_NUMBER: _ClassVar[int]
@@ -188,13 +189,13 @@ class BuildInfo(_message.Message):
     def __init__(self, product: _Optional[_Union[Product, str]] = ..., product_flags: _Optional[_Iterable[_Union[ProductFlags, str]]] = ..., platform: _Optional[_Union[Platform, str]] = ..., version: _Optional[int] = ...) -> None: ...
 
 class LoginCryptoHelloUnion(_message.Message):
-    __slots__ = ("diffie_hellman",)
+    __slots__ = ()
     DIFFIE_HELLMAN_FIELD_NUMBER: _ClassVar[int]
     diffie_hellman: LoginCryptoDiffieHellmanHello
     def __init__(self, diffie_hellman: _Optional[_Union[LoginCryptoDiffieHellmanHello, _Mapping]] = ...) -> None: ...
 
 class LoginCryptoDiffieHellmanHello(_message.Message):
-    __slots__ = ("gc", "server_keys_known")
+    __slots__ = ()
     GC_FIELD_NUMBER: _ClassVar[int]
     SERVER_KEYS_KNOWN_FIELD_NUMBER: _ClassVar[int]
     gc: bytes
@@ -202,15 +203,15 @@ class LoginCryptoDiffieHellmanHello(_message.Message):
     def __init__(self, gc: _Optional[bytes] = ..., server_keys_known: _Optional[int] = ...) -> None: ...
 
 class FeatureSet(_message.Message):
-    __slots__ = ("autoupdate2", "current_location")
+    __slots__ = ()
     AUTOUPDATE2_FIELD_NUMBER: _ClassVar[int]
     CURRENT_LOCATION_FIELD_NUMBER: _ClassVar[int]
     autoupdate2: bool
     current_location: bool
-    def __init__(self, autoupdate2: bool = ..., current_location: bool = ...) -> None: ...
+    def __init__(self, autoupdate2: _Optional[bool] = ..., current_location: _Optional[bool] = ...) -> None: ...
 
 class APResponseMessage(_message.Message):
-    __slots__ = ("challenge", "upgrade", "login_failed")
+    __slots__ = ()
     CHALLENGE_FIELD_NUMBER: _ClassVar[int]
     UPGRADE_FIELD_NUMBER: _ClassVar[int]
     LOGIN_FAILED_FIELD_NUMBER: _ClassVar[int]
@@ -220,7 +221,7 @@ class APResponseMessage(_message.Message):
     def __init__(self, challenge: _Optional[_Union[APChallenge, _Mapping]] = ..., upgrade: _Optional[_Union[UpgradeRequiredMessage, _Mapping]] = ..., login_failed: _Optional[_Union[APLoginFailed, _Mapping]] = ...) -> None: ...
 
 class APChallenge(_message.Message):
-    __slots__ = ("login_crypto_challenge", "fingerprint_challenge", "pow_challenge", "crypto_challenge", "server_nonce", "padding")
+    __slots__ = ()
     LOGIN_CRYPTO_CHALLENGE_FIELD_NUMBER: _ClassVar[int]
     FINGERPRINT_CHALLENGE_FIELD_NUMBER: _ClassVar[int]
     POW_CHALLENGE_FIELD_NUMBER: _ClassVar[int]
@@ -236,13 +237,13 @@ class APChallenge(_message.Message):
     def __init__(self, login_crypto_challenge: _Optional[_Union[LoginCryptoChallengeUnion, _Mapping]] = ..., fingerprint_challenge: _Optional[_Union[FingerprintChallengeUnion, _Mapping]] = ..., pow_challenge: _Optional[_Union[PoWChallengeUnion, _Mapping]] = ..., crypto_challenge: _Optional[_Union[CryptoChallengeUnion, _Mapping]] = ..., server_nonce: _Optional[bytes] = ..., padding: _Optional[bytes] = ...) -> None: ...
 
 class LoginCryptoChallengeUnion(_message.Message):
-    __slots__ = ("diffie_hellman",)
+    __slots__ = ()
     DIFFIE_HELLMAN_FIELD_NUMBER: _ClassVar[int]
     diffie_hellman: LoginCryptoDiffieHellmanChallenge
     def __init__(self, diffie_hellman: _Optional[_Union[LoginCryptoDiffieHellmanChallenge, _Mapping]] = ...) -> None: ...
 
 class LoginCryptoDiffieHellmanChallenge(_message.Message):
-    __slots__ = ("gs", "server_signature_key", "gs_signature")
+    __slots__ = ()
     GS_FIELD_NUMBER: _ClassVar[int]
     SERVER_SIGNATURE_KEY_FIELD_NUMBER: _ClassVar[int]
     GS_SIGNATURE_FIELD_NUMBER: _ClassVar[int]
@@ -252,7 +253,7 @@ class LoginCryptoDiffieHellmanChallenge(_message.Message):
     def __init__(self, gs: _Optional[bytes] = ..., server_signature_key: _Optional[int] = ..., gs_signature: _Optional[bytes] = ...) -> None: ...
 
 class FingerprintChallengeUnion(_message.Message):
-    __slots__ = ("grain", "hmac_ripemd")
+    __slots__ = ()
     GRAIN_FIELD_NUMBER: _ClassVar[int]
     HMAC_RIPEMD_FIELD_NUMBER: _ClassVar[int]
     grain: FingerprintGrainChallenge
@@ -260,25 +261,25 @@ class FingerprintChallengeUnion(_message.Message):
     def __init__(self, grain: _Optional[_Union[FingerprintGrainChallenge, _Mapping]] = ..., hmac_ripemd: _Optional[_Union[FingerprintHmacRipemdChallenge, _Mapping]] = ...) -> None: ...
 
 class FingerprintGrainChallenge(_message.Message):
-    __slots__ = ("kek",)
+    __slots__ = ()
     KEK_FIELD_NUMBER: _ClassVar[int]
     kek: bytes
     def __init__(self, kek: _Optional[bytes] = ...) -> None: ...
 
 class FingerprintHmacRipemdChallenge(_message.Message):
-    __slots__ = ("challenge",)
+    __slots__ = ()
     CHALLENGE_FIELD_NUMBER: _ClassVar[int]
     challenge: bytes
     def __init__(self, challenge: _Optional[bytes] = ...) -> None: ...
 
 class PoWChallengeUnion(_message.Message):
-    __slots__ = ("hash_cash",)
+    __slots__ = ()
     HASH_CASH_FIELD_NUMBER: _ClassVar[int]
     hash_cash: PoWHashCashChallenge
     def __init__(self, hash_cash: _Optional[_Union[PoWHashCashChallenge, _Mapping]] = ...) -> None: ...
 
 class PoWHashCashChallenge(_message.Message):
-    __slots__ = ("prefix", "length", "target")
+    __slots__ = ()
     PREFIX_FIELD_NUMBER: _ClassVar[int]
     LENGTH_FIELD_NUMBER: _ClassVar[int]
     TARGET_FIELD_NUMBER: _ClassVar[int]
@@ -288,7 +289,7 @@ class PoWHashCashChallenge(_message.Message):
     def __init__(self, prefix: _Optional[bytes] = ..., length: _Optional[int] = ..., target: _Optional[int] = ...) -> None: ...
 
 class CryptoChallengeUnion(_message.Message):
-    __slots__ = ("shannon", "rc4_sha1_hmac")
+    __slots__ = ()
     SHANNON_FIELD_NUMBER: _ClassVar[int]
     RC4_SHA1_HMAC_FIELD_NUMBER: _ClassVar[int]
     shannon: CryptoShannonChallenge
@@ -304,7 +305,7 @@ class CryptoRc4Sha1HmacChallenge(_message.Message):
     def __init__(self) -> None: ...
 
 class UpgradeRequiredMessage(_message.Message):
-    __slots__ = ("upgrade_signed_part", "signature", "http_suffix")
+    __slots__ = ()
     UPGRADE_SIGNED_PART_FIELD_NUMBER: _ClassVar[int]
     SIGNATURE_FIELD_NUMBER: _ClassVar[int]
     HTTP_SUFFIX_FIELD_NUMBER: _ClassVar[int]
@@ -314,7 +315,7 @@ class UpgradeRequiredMessage(_message.Message):
     def __init__(self, upgrade_signed_part: _Optional[bytes] = ..., signature: _Optional[bytes] = ..., http_suffix: _Optional[str] = ...) -> None: ...
 
 class APLoginFailed(_message.Message):
-    __slots__ = ("error_code", "retry_delay", "expiry", "error_description")
+    __slots__ = ()
     ERROR_CODE_FIELD_NUMBER: _ClassVar[int]
     RETRY_DELAY_FIELD_NUMBER: _ClassVar[int]
     EXPIRY_FIELD_NUMBER: _ClassVar[int]
@@ -326,7 +327,7 @@ class APLoginFailed(_message.Message):
     def __init__(self, error_code: _Optional[_Union[ErrorCode, str]] = ..., retry_delay: _Optional[int] = ..., expiry: _Optional[int] = ..., error_description: _Optional[str] = ...) -> None: ...
 
 class ClientResponsePlaintext(_message.Message):
-    __slots__ = ("login_crypto_response", "pow_response", "crypto_response")
+    __slots__ = ()
     LOGIN_CRYPTO_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     POW_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     CRYPTO_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -336,31 +337,31 @@ class ClientResponsePlaintext(_message.Message):
     def __init__(self, login_crypto_response: _Optional[_Union[LoginCryptoResponseUnion, _Mapping]] = ..., pow_response: _Optional[_Union[PoWResponseUnion, _Mapping]] = ..., crypto_response: _Optional[_Union[CryptoResponseUnion, _Mapping]] = ...) -> None: ...
 
 class LoginCryptoResponseUnion(_message.Message):
-    __slots__ = ("diffie_hellman",)
+    __slots__ = ()
     DIFFIE_HELLMAN_FIELD_NUMBER: _ClassVar[int]
     diffie_hellman: LoginCryptoDiffieHellmanResponse
     def __init__(self, diffie_hellman: _Optional[_Union[LoginCryptoDiffieHellmanResponse, _Mapping]] = ...) -> None: ...
 
 class LoginCryptoDiffieHellmanResponse(_message.Message):
-    __slots__ = ("hmac",)
+    __slots__ = ()
     HMAC_FIELD_NUMBER: _ClassVar[int]
     hmac: bytes
     def __init__(self, hmac: _Optional[bytes] = ...) -> None: ...
 
 class PoWResponseUnion(_message.Message):
-    __slots__ = ("hash_cash",)
+    __slots__ = ()
     HASH_CASH_FIELD_NUMBER: _ClassVar[int]
     hash_cash: PoWHashCashResponse
     def __init__(self, hash_cash: _Optional[_Union[PoWHashCashResponse, _Mapping]] = ...) -> None: ...
 
 class PoWHashCashResponse(_message.Message):
-    __slots__ = ("hash_suffix",)
+    __slots__ = ()
     HASH_SUFFIX_FIELD_NUMBER: _ClassVar[int]
     hash_suffix: bytes
     def __init__(self, hash_suffix: _Optional[bytes] = ...) -> None: ...
 
 class CryptoResponseUnion(_message.Message):
-    __slots__ = ("shannon", "rc4_sha1_hmac")
+    __slots__ = ()
     SHANNON_FIELD_NUMBER: _ClassVar[int]
     RC4_SHA1_HMAC_FIELD_NUMBER: _ClassVar[int]
     shannon: CryptoShannonResponse
@@ -368,13 +369,13 @@ class CryptoResponseUnion(_message.Message):
     def __init__(self, shannon: _Optional[_Union[CryptoShannonResponse, _Mapping]] = ..., rc4_sha1_hmac: _Optional[_Union[CryptoRc4Sha1HmacResponse, _Mapping]] = ...) -> None: ...
 
 class CryptoShannonResponse(_message.Message):
-    __slots__ = ("dummy",)
+    __slots__ = ()
     DUMMY_FIELD_NUMBER: _ClassVar[int]
     dummy: int
     def __init__(self, dummy: _Optional[int] = ...) -> None: ...
 
 class CryptoRc4Sha1HmacResponse(_message.Message):
-    __slots__ = ("dummy",)
+    __slots__ = ()
     DUMMY_FIELD_NUMBER: _ClassVar[int]
     dummy: int
     def __init__(self, dummy: _Optional[int] = ...) -> None: ...

@@ -1,7 +1,8 @@
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from typing import ClassVar as _ClassVar, Mapping as _Mapping, Optional as _Optional, Union as _Union
+from collections.abc import Mapping as _Mapping
+from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -116,7 +117,7 @@ Spotify: AccountType
 Facebook: AccountType
 
 class ClientResponseEncrypted(_message.Message):
-    __slots__ = ("login_credentials", "account_creation", "fingerprint_response", "peer_ticket", "system_info", "platform_model", "version_string", "appkey", "client_info")
+    __slots__ = ()
     LOGIN_CREDENTIALS_FIELD_NUMBER: _ClassVar[int]
     ACCOUNT_CREATION_FIELD_NUMBER: _ClassVar[int]
     FINGERPRINT_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -138,7 +139,7 @@ class ClientResponseEncrypted(_message.Message):
     def __init__(self, login_credentials: _Optional[_Union[LoginCredentials, _Mapping]] = ..., account_creation: _Optional[_Union[AccountCreation, str]] = ..., fingerprint_response: _Optional[_Union[FingerprintResponseUnion, _Mapping]] = ..., peer_ticket: _Optional[_Union[PeerTicketUnion, _Mapping]] = ..., system_info: _Optional[_Union[SystemInfo, _Mapping]] = ..., platform_model: _Optional[str] = ..., version_string: _Optional[str] = ..., appkey: _Optional[_Union[LibspotifyAppKey, _Mapping]] = ..., client_info: _Optional[_Union[ClientInfo, _Mapping]] = ...) -> None: ...
 
 class LoginCredentials(_message.Message):
-    __slots__ = ("username", "typ", "auth_data")
+    __slots__ = ()
     USERNAME_FIELD_NUMBER: _ClassVar[int]
     TYP_FIELD_NUMBER: _ClassVar[int]
     AUTH_DATA_FIELD_NUMBER: _ClassVar[int]
@@ -148,7 +149,7 @@ class LoginCredentials(_message.Message):
     def __init__(self, username: _Optional[str] = ..., typ: _Optional[_Union[AuthenticationType, str]] = ..., auth_data: _Optional[bytes] = ...) -> None: ...
 
 class FingerprintResponseUnion(_message.Message):
-    __slots__ = ("grain", "hmac_ripemd")
+    __slots__ = ()
     GRAIN_FIELD_NUMBER: _ClassVar[int]
     HMAC_RIPEMD_FIELD_NUMBER: _ClassVar[int]
     grain: FingerprintGrainResponse
@@ -156,19 +157,19 @@ class FingerprintResponseUnion(_message.Message):
     def __init__(self, grain: _Optional[_Union[FingerprintGrainResponse, _Mapping]] = ..., hmac_ripemd: _Optional[_Union[FingerprintHmacRipemdResponse, _Mapping]] = ...) -> None: ...
 
 class FingerprintGrainResponse(_message.Message):
-    __slots__ = ("encrypted_key",)
+    __slots__ = ()
     ENCRYPTED_KEY_FIELD_NUMBER: _ClassVar[int]
     encrypted_key: bytes
     def __init__(self, encrypted_key: _Optional[bytes] = ...) -> None: ...
 
 class FingerprintHmacRipemdResponse(_message.Message):
-    __slots__ = ("hmac",)
+    __slots__ = ()
     HMAC_FIELD_NUMBER: _ClassVar[int]
     hmac: bytes
     def __init__(self, hmac: _Optional[bytes] = ...) -> None: ...
 
 class PeerTicketUnion(_message.Message):
-    __slots__ = ("public_key", "old_ticket")
+    __slots__ = ()
     PUBLIC_KEY_FIELD_NUMBER: _ClassVar[int]
     OLD_TICKET_FIELD_NUMBER: _ClassVar[int]
     public_key: PeerTicketPublicKey
@@ -176,13 +177,13 @@ class PeerTicketUnion(_message.Message):
     def __init__(self, public_key: _Optional[_Union[PeerTicketPublicKey, _Mapping]] = ..., old_ticket: _Optional[_Union[PeerTicketOld, _Mapping]] = ...) -> None: ...
 
 class PeerTicketPublicKey(_message.Message):
-    __slots__ = ("public_key",)
+    __slots__ = ()
     PUBLIC_KEY_FIELD_NUMBER: _ClassVar[int]
     public_key: bytes
     def __init__(self, public_key: _Optional[bytes] = ...) -> None: ...
 
 class PeerTicketOld(_message.Message):
-    __slots__ = ("peer_ticket", "peer_ticket_signature")
+    __slots__ = ()
     PEER_TICKET_FIELD_NUMBER: _ClassVar[int]
     PEER_TICKET_SIGNATURE_FIELD_NUMBER: _ClassVar[int]
     peer_ticket: bytes
@@ -190,7 +191,7 @@ class PeerTicketOld(_message.Message):
     def __init__(self, peer_ticket: _Optional[bytes] = ..., peer_ticket_signature: _Optional[bytes] = ...) -> None: ...
 
 class SystemInfo(_message.Message):
-    __slots__ = ("cpu_family", "cpu_subtype", "cpu_ext", "brand", "brand_flags", "os", "os_version", "os_ext", "system_information_string", "device_id")
+    __slots__ = ()
     CPU_FAMILY_FIELD_NUMBER: _ClassVar[int]
     CPU_SUBTYPE_FIELD_NUMBER: _ClassVar[int]
     CPU_EXT_FIELD_NUMBER: _ClassVar[int]
@@ -214,7 +215,7 @@ class SystemInfo(_message.Message):
     def __init__(self, cpu_family: _Optional[_Union[CpuFamily, str]] = ..., cpu_subtype: _Optional[int] = ..., cpu_ext: _Optional[int] = ..., brand: _Optional[_Union[Brand, str]] = ..., brand_flags: _Optional[int] = ..., os: _Optional[_Union[Os, str]] = ..., os_version: _Optional[int] = ..., os_ext: _Optional[int] = ..., system_information_string: _Optional[str] = ..., device_id: _Optional[str] = ...) -> None: ...
 
 class LibspotifyAppKey(_message.Message):
-    __slots__ = ("version", "devkey", "signature", "useragent", "callback_hash")
+    __slots__ = ()
     VERSION_FIELD_NUMBER: _ClassVar[int]
     DEVKEY_FIELD_NUMBER: _ClassVar[int]
     SIGNATURE_FIELD_NUMBER: _ClassVar[int]
@@ -228,23 +229,23 @@ class LibspotifyAppKey(_message.Message):
     def __init__(self, version: _Optional[int] = ..., devkey: _Optional[bytes] = ..., signature: _Optional[bytes] = ..., useragent: _Optional[str] = ..., callback_hash: _Optional[bytes] = ...) -> None: ...
 
 class ClientInfo(_message.Message):
-    __slots__ = ("limited", "fb", "language")
+    __slots__ = ()
     LIMITED_FIELD_NUMBER: _ClassVar[int]
     FB_FIELD_NUMBER: _ClassVar[int]
     LANGUAGE_FIELD_NUMBER: _ClassVar[int]
     limited: bool
     fb: ClientInfoFacebook
     language: str
-    def __init__(self, limited: bool = ..., fb: _Optional[_Union[ClientInfoFacebook, _Mapping]] = ..., language: _Optional[str] = ...) -> None: ...
+    def __init__(self, limited: _Optional[bool] = ..., fb: _Optional[_Union[ClientInfoFacebook, _Mapping]] = ..., language: _Optional[str] = ...) -> None: ...
 
 class ClientInfoFacebook(_message.Message):
-    __slots__ = ("machine_id",)
+    __slots__ = ()
     MACHINE_ID_FIELD_NUMBER: _ClassVar[int]
     machine_id: str
     def __init__(self, machine_id: _Optional[str] = ...) -> None: ...
 
 class APWelcome(_message.Message):
-    __slots__ = ("canonical_username", "account_type_logged_in", "credentials_type_logged_in", "reusable_auth_credentials_type", "reusable_auth_credentials", "lfs_secret", "account_info", "fb")
+    __slots__ = ()
     CANONICAL_USERNAME_FIELD_NUMBER: _ClassVar[int]
     ACCOUNT_TYPE_LOGGED_IN_FIELD_NUMBER: _ClassVar[int]
     CREDENTIALS_TYPE_LOGGED_IN_FIELD_NUMBER: _ClassVar[int]
@@ -264,7 +265,7 @@ class APWelcome(_message.Message):
     def __init__(self, canonical_username: _Optional[str] = ..., account_type_logged_in: _Optional[_Union[AccountType, str]] = ..., credentials_type_logged_in: _Optional[_Union[AccountType, str]] = ..., reusable_auth_credentials_type: _Optional[_Union[AuthenticationType, str]] = ..., reusable_auth_credentials: _Optional[bytes] = ..., lfs_secret: _Optional[bytes] = ..., account_info: _Optional[_Union[AccountInfo, _Mapping]] = ..., fb: _Optional[_Union[AccountInfoFacebook, _Mapping]] = ...) -> None: ...
 
 class AccountInfo(_message.Message):
-    __slots__ = ("spotify", "facebook")
+    __slots__ = ()
     SPOTIFY_FIELD_NUMBER: _ClassVar[int]
     FACEBOOK_FIELD_NUMBER: _ClassVar[int]
     spotify: AccountInfoSpotify
@@ -276,7 +277,7 @@ class AccountInfoSpotify(_message.Message):
     def __init__(self) -> None: ...
 
 class AccountInfoFacebook(_message.Message):
-    __slots__ = ("access_token", "machine_id")
+    __slots__ = ()
     ACCESS_TOKEN_FIELD_NUMBER: _ClassVar[int]
     MACHINE_ID_FIELD_NUMBER: _ClassVar[int]
     access_token: str
