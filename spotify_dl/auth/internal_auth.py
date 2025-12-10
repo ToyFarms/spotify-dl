@@ -6,7 +6,7 @@ from typing import TypeGuard, TypedDict, override
 
 from spotify_dl.api.internal.totp import create_otp_auth_url
 from spotify_dl.auth.auth_provider import AuthProvider
-from spotify_dl.auth.web_auth import SpotifyAuthPKCE
+from spotify_dl.auth.spdc import SpDCAuth
 from spotify_dl.utils.session import Session
 
 
@@ -19,13 +19,21 @@ class SpotifyITokenSchema(TypedDict):
     expires_at: int
 
 
+# TODO: possibly create 2 version of this, SpotifyInternalAuthWithDc
 class SpotifyInternalAuth(AuthProvider[SpotifyITokenSchema]):
-    def __init__(self) -> None:
-        super().__init__(key="internal-auth")
+    def __init__(self, sp_dc: SpDCAuth | None = None) -> None:
+        super().__init__(key="internal-auth-anon" if not sp_dc else "internal-auth")
         self.session: Session = Session(self)
+        self.sp_dc: SpDCAuth | None = sp_dc
+
+    def is_linked_with_account(self) -> bool | None:
+        if not self._token:
+            return
+
+        return not self._token.get("isAnonymous")
 
     def authenticate(self) -> None:
-        if self.require_login() or self.is_token_expired(self._token):
+        if self.require_login() or self.is_token_expired():
             self._authenticate()
 
         if not self.is_token_valid(self._token):
@@ -75,7 +83,11 @@ class SpotifyInternalAuth(AuthProvider[SpotifyITokenSchema]):
 
     def _request_token(self) -> SpotifyITokenSchema:
         url = create_otp_auth_url()
-        res = requests.get(url)
+
+        if self.sp_dc:
+            res = self.sp_dc.session.get(url)
+        else:
+            res = requests.get(url)  # anonymous token
         res.raise_for_status()
 
         return typing.cast(SpotifyITokenSchema, res.json())

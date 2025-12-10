@@ -3,9 +3,6 @@
 # TODO: persistent state management
 # TODO: persistent download (allow for resuming interrupted download)
 
-# NOTE: spotify download is currently not working (for free user only i think), because of some change in their backend, i cannot get the audio key, nothing i can do about it unless someone finds a way around it
-# Issues: https://github.com/Googolplexed0/zotify/issues/86, https://github.com/DraftKinner/zotify/issues/95, https://github.com/kokarare1212/librespot-python/issues/315
-
 """
 OGG_VORBIS_96 = 0; // playplay
 OGG_VORBIS_160 = 1; // playplay
@@ -37,7 +34,7 @@ from faker import Faker
 
 from spotify_dl.auth.clienttoken import ClientToken
 from spotify_dl.auth.login5 import Login5Auth
-from spotify_dl.key_provider import KeyProvider
+from spotify_dl.auth.spdc import SpDCAuth
 
 fake = Faker()
 
@@ -57,7 +54,9 @@ from spotify_dl.api.internal.spotify_client import SpotifyClient
 from spotify_dl.api.internal.widevine import WidevineClient
 from spotify_dl.auth.internal_auth import SpotifyInternalAuth
 from spotify_dl.auth.web_auth import SpotifyAuthPKCE
-from spotify_dl.cli import CLI
+
+# TODO: cli is unreliable
+# from spotify_dl.cli import CLI
 from spotify_dl.downloader import (
     SpotifyDownloadParam,
     SpotifyDownloadManager,
@@ -71,10 +70,11 @@ from spotify_dl.utils.ytdl import choose_best_audio_format
 
 
 # TODO: create a general key provider class so its not handled here
-class KeyRetrievalMethod(StrEnum):
-    SHANNON = "Shannon"
+class KeySource(StrEnum):
+    CLIENT = "Client"
     PLAYPLAY = "PlayPlay"
     WIDEVINE = "Widevine"
+    NONE = "None"
 
 
 def get_username(auth: SpotifyAuthPKCE) -> str:
@@ -114,10 +114,11 @@ def prompt[T](
                 return default
 
             if not ans.isnumeric():
+                if greedy:
+                    return cast(T, ans)
+
                 print(f"Invalid index")
                 continue
-            elif greedy:
-                return cast(T, ans)
 
             idx = int(ans)
             if idx > len(items) or idx < 1:
@@ -204,9 +205,6 @@ def completer(text: str, state: int) -> str | None:
 
 
 def main() -> None:
-    # TODO: basicConfig (cant) twice
-    # logging.basicConfig(level=logging.INFO)
-
     _ = atexit.register(lambda: readline.write_history_file(HISTORY_FILE))
     readline.set_completer(completer)
     readline.parse_and_bind("tab: complete")
@@ -231,12 +229,12 @@ def main() -> None:
     state.iauth = SpotifyInternalAuth()
 
     state.name = get_username(state.auth)
-    cli = CLI(state.download_manager)
+    # cli = CLI(state.download_manager)
 
     while state.running:
         print()
 
-        cli.prompting = True
+        # cli.prompting = True
         if program_args.command:
             commands: list[str] = shlex.split(program_args.command)
             state.running = False
@@ -246,8 +244,8 @@ def main() -> None:
             except (EOFError, KeyboardInterrupt):
                 print()
                 break
-            finally:
-                cli.prompting = False
+            # finally:
+            #     cli.prompting = False
 
         match commands:
             case ["login", *_]:
@@ -492,17 +490,20 @@ def main() -> None:
                 method = prompt(
                     "choose audio key retrieval method",
                     [
-                        KeyRetrievalMethod.SHANNON,
-                        KeyRetrievalMethod.PLAYPLAY,
-                        KeyRetrievalMethod.WIDEVINE,
+                        KeySource.CLIENT,
+                        KeySource.PLAYPLAY,
+                        KeySource.WIDEVINE,
+                        KeySource.NONE,
                     ],
-                    default=KeyRetrievalMethod.WIDEVINE,
+                    default=KeySource.WIDEVINE,
                     repr_fun=lambda x, _: x.value,
                 )
-                if method == KeyRetrievalMethod.SHANNON:
+                if method == KeySource.CLIENT:
                     print("Connecting to Spotify...")
                     state.client = SpotifyClient.random_ap(state.auth)
-                if method == KeyRetrievalMethod.PLAYPLAY:
+                    state.client.handshake()
+                    state.client.authenticate()
+                if method == KeySource.PLAYPLAY:
                     if not state.login5:
                         if not state.client:
                             state.client = SpotifyClient.random_ap(state.auth)
@@ -518,10 +519,10 @@ def main() -> None:
                         state.clienttoken = ClientToken(state.client)
 
                     state.playplay = PlayPlay(state.login5, state.clienttoken)
-                elif method == KeyRetrievalMethod.WIDEVINE:
+                elif method == KeySource.WIDEVINE:
                     print("NOTE: Widevine only supports mp4 format")
                     print(
-                        "supply an extracted Widevine license, take a look at https://cdm-project.com/How-To/Dumping-L3-from-Android create an input the wvd file below (empty to abort)"
+                        "supply an extracted Widevine license, take a look at https://forum.videohelp.com/threads/408031-Dumping-Your-own-L3-CDM-with-Android-Studio"
                     )
                     wvds = glob.glob("*.wvd", include_hidden=True)
                     wvd = prompt("private key path", wvds, wvds[0], greedy=True)
@@ -529,7 +530,17 @@ def main() -> None:
                         print("No wvd file supplied")
                         continue
 
-                    state.widevine = WidevineClient(state.iauth, wvd)
+                    if not state.clienttoken:
+                        if not state.client:
+                            state.client = SpotifyClient.random_ap(state.auth)
+                        state.clienttoken = ClientToken(state.client)
+
+                    if not state.iauth.is_linked_with_account():
+                        sp_dc = SpDCAuth()
+                        _ = sp_dc.token  # trigger prompt
+                        state.iauth = SpotifyInternalAuth(sp_dc)
+
+                    state.widevine = WidevineClient(state.iauth, state.clienttoken, wvd)
 
                 args = (
                     CommandParser()
@@ -555,11 +566,11 @@ def main() -> None:
                 print()
 
                 default_format_type = None
-                if method == KeyRetrievalMethod.WIDEVINE:
+                if method == KeySource.WIDEVINE:
                     default_format_type = AudioFormat.Type.MP4_128
                 elif method in (
-                    KeyRetrievalMethod.PLAYPLAY,
-                    KeyRetrievalMethod.SHANNON,
+                    KeySource.PLAYPLAY,
+                    KeySource.CLIENT,
                 ):
                     default_format_type = AudioFormat.Type.OGG_VORBIS_160
 
@@ -588,17 +599,15 @@ def main() -> None:
                 elif state.dir:
                     path = state.dir.expanduser().absolute() / path
 
-                if not any([state.playplay, state.widevine, state.client]):
-                    raise RuntimeError("No auth provider selected")
+                if args.sim_play and method == KeySource.WIDEVINE:
+                    print("Cannot stream with widevine (yet)")
+                    args.sim_play = False
 
                 state.download_manager.enqueue(
                     SpotifyDownloadParam(
                         track=track,
                         auth=state.auth,
-                        key_provider=cast(
-                            KeyProvider,
-                            state.playplay or state.widevine or state.client,
-                        ),
+                        key_provider=state.playplay or state.widevine or state.client,
                         output=str(path),
                         emulate_playback=args.sim_play,
                     )
@@ -662,6 +671,7 @@ def main() -> None:
                 else:
                     print(res.content)
             case ["verbose"]:
+                # TODO: i cannot configure logging multiple time
                 logging.basicConfig(level=logging.DEBUG)
                 print("verbose on")
             case ["out", dir]:

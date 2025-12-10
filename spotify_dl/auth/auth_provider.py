@@ -40,10 +40,7 @@ class AuthProvider[T: Mapping[str, object]](ABC):
         token_path = AuthProvider.TOKEN_DIR / f"{self._key}.json"
 
         if token is None:
-            try:
-                token_path.unlink()
-            except FileNotFoundError:
-                pass
+            token_path.unlink(missing_ok=True)
             return
 
         fd, tmp = tempfile.mkstemp(
@@ -58,20 +55,15 @@ class AuthProvider[T: Mapping[str, object]](ABC):
 
             os.replace(str(tmp_path), str(token_path))
         finally:
-            if tmp_path.exists():
-                try:
-                    tmp_path.unlink()
-                except Exception:
-                    pass
+            tmp_path.unlink(missing_ok=True)
 
     def _load(self) -> T | None:
         token_path = AuthProvider.TOKEN_DIR / f"{self._key}.json"
         if not token_path.exists():
             return None
+
         try:
             with token_path.open("r", encoding="utf-8") as f:
-                # note: keep the return type as T | None; caller may cast
                 return cast(T, json.load(f))
         except Exception:
-            # corrupted or unreadable file -> treat as missing
-            return None
+            return

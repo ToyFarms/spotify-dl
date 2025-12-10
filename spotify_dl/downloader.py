@@ -2,6 +2,10 @@
 
 import binascii
 import logging
+import os
+import shlex
+import shutil
+import subprocess
 import threading
 import time
 
@@ -15,15 +19,13 @@ from requests import HTTPError
 from spotify_dl.api.internal.widevine import WidevineClient
 from spotify_dl.api.web.storage_resolve import storage_resolve
 from spotify_dl.key_provider import KeyProvider
-from spotify_dl.api.internal.spotify_client import SpotifyClient
 from spotify_dl.auth.web_auth import SpotifyAuthPKCE
 from spotify_dl.metadata import apply_metadata
 from spotify_dl.stream import (
-    ChunkedStream,
     DecryptedSpotifyStream,
     EncryptedSpotifyStream,
 )
-from spotify_dl.track import Track
+from spotify_dl.track import ReplayGain, Track
 from spotify_dl.format import AudioCodec, AudioFormat
 
 
@@ -36,7 +38,7 @@ class SpotifyDownloader:
         self,
         track: Track,
         auth: SpotifyAuthPKCE,
-        key_provider: KeyProvider,
+        key_provider: KeyProvider | None,
     ) -> None:
         self.track: Track = track
 
@@ -44,29 +46,33 @@ class SpotifyDownloader:
             raise ValueError("Track format is not set")
         self.format: AudioFormat = track.format
         self.auth: SpotifyAuthPKCE = auth
-        self.key_provider: KeyProvider = key_provider
+        self.key_provider: KeyProvider | None = key_provider
 
         cdn_urls, fileid = self._resolve(track.format.file_id)
 
-        key = SpotifyDownloader._KEY_CACHE.get(track.format.gid)
-        if key is None:
-            key = self.key_provider.get_audio_key(
-                binascii.unhexlify(track.format.gid),
-                (
-                    binascii.unhexlify(track.format.file_id)
-                    if not isinstance(self.key_provider, WidevineClient)
-                    else fileid.encode()
-                ),
-            )
-            self.logger.info(f"key: {key}")
-            if key:
-                SpotifyDownloader._KEY_CACHE[track.format.gid] = key
+        self.key: bytes | None = SpotifyDownloader._KEY_CACHE.get(track.format.gid)
+        if self.key_provider:
+            if self.key is None:
+                self.key = self.key_provider.get_audio_key(
+                    binascii.unhexlify(track.format.gid),
+                    (
+                        binascii.unhexlify(track.format.file_id)
+                        if not isinstance(self.key_provider, WidevineClient)
+                        else fileid.encode()
+                    ),
+                )
+                self.logger.info(f"key: {self.key!r}")
+                if self.key:
+                    SpotifyDownloader._KEY_CACHE[track.format.gid] = self.key
 
         self.stream: DecryptedSpotifyStream | EncryptedSpotifyStream
         for cdn in cdn_urls:
             try:
-                if key:
-                    self.stream = DecryptedSpotifyStream(cdn, key, max_cached_chunks=-1)
+                # TODO: decrypt ourself
+                if self.key and not isinstance(self.key_provider, WidevineClient):
+                    self.stream = DecryptedSpotifyStream(
+                        cdn, self.key, max_cached_chunks=-1
+                    )
                 else:
                     self.stream = EncryptedSpotifyStream(cdn, max_cached_chunks=-1)
                 break
@@ -159,7 +165,7 @@ class SpotifyDownloader:
 class SpotifyDownloadParam:
     track: Track
     auth: SpotifyAuthPKCE
-    key_provider: KeyProvider
+    key_provider: KeyProvider | None
     output: str
     emulate_playback: bool
 
@@ -219,7 +225,6 @@ class SpotifyDownloadManager:
                     self._active.put((thread_name, state))
                     self._cond.notify_all()
 
-                header = dl.stream.read_header()
                 self.logger.info(
                     f"Now downloading: {param.track.get_metadata(param.auth)['name']}",
                 )
@@ -230,12 +235,64 @@ class SpotifyDownloadManager:
                 )
                 self.logger.info(f"Download finished, saved in: {param.output!r}")
 
-                apply_metadata(
-                    param.track,
-                    str(param.output),
-                    param.auth,
-                    replaygain=header.replaygain,
-                )
+                # TODO: just pass the key source
+
+                add_metadata = isinstance(dl.stream, DecryptedSpotifyStream)
+
+                if isinstance(dl.stream, EncryptedSpotifyStream) and dl.key:
+                    self.logger.info("File is encrypted, decrypting...")
+                    # dl.key is [KID:KEY, ...] separated with space
+                    k = dl.key.decode().split(" ")
+                    keys = [
+                        val
+                        for pair in zip(("--key" for _ in range(len(k))), k)
+                        for val in pair
+                    ]
+                    enc_file = Path(param.output)
+                    dec_file = Path(param.output).with_stem(enc_file.stem + "_dec")
+
+                    mp4dec: Path | None = None
+                    if p := shutil.which("mp4decrypt"):
+                        mp4dec = Path(p)
+                    else:
+                        mp4dec = Path(__file__).parent.parent / "build/mp4decrypt"
+
+                    if mp4dec.exists() and mp4dec.is_file():
+                        self.logger.debug(f"Running mp4decrypt {mp4dec!r}")
+                        _ = subprocess.run([mp4dec, *keys, enc_file, dec_file])
+                        self.logger.debug(f"Moving {dec_file!r} to {enc_file!r}")
+                        os.replace(dec_file, enc_file)
+                        add_metadata = True
+                    else:
+                        self.logger.warning(
+                            "mp4decrypt is required for widevine stream. download it from 'https://www.bento4.com/downloads' or build it with 'python script.py build-bento4'"
+                        )
+                        self.logger.info(
+                            f"call the following command to decrypt the already downloaded file:"
+                        )
+                        self.logger.info(
+                            f"\tmp4decrypt {" ".join(keys)} {shlex.quote(str(enc_file))} {shlex.quote(str(dec_file))}"
+                        )
+
+                if add_metadata:
+                    self.logger.info("Adding metadata")
+                    rg: ReplayGain | None = None
+                    if (
+                        param.track.format
+                        and param.track.format.get_codec() == AudioCodec.OGG_VORBIS
+                        and isinstance(dl.stream, DecryptedSpotifyStream)
+                    ):
+                        header = dl.stream.read_header()
+                        rg = header.replaygain
+                    else:
+                        self.logger.debug("Track does not have replaygain info")
+
+                    apply_metadata(
+                        param.track,
+                        str(param.output),
+                        param.auth,
+                        replaygain=rg,
+                    )
 
                 self.logger.info(
                     f"Finished adding metadata, saved in: {param.output!r}"

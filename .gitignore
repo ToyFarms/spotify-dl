@@ -5,3 +5,5 @@ test/
 log.txt
 .*
 !.gitignore
+dec/
+build/

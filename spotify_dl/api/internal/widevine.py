@@ -1,22 +1,36 @@
+# pyright: basic
+
 from pathlib import Path
-import pickle
-import random
 from typing import cast, override
 from pywidevine.cdm import Cdm
 from pywidevine.device import Device
 from pywidevine.pssh import PSSH
-import requests
+import curl_cffi
 
 from spotify_dl.api.web.apresolve import get_random_spclient
+from spotify_dl.auth.clienttoken import ClientToken
 from spotify_dl.key_provider import KeyProvider
 from spotify_dl.auth.internal_auth import SpotifyInternalAuth
 
 
 class WidevineClient(KeyProvider):
     def __init__(
-        self, iauth: SpotifyInternalAuth, widevine_license: Path | str
+        self,
+        iauth: SpotifyInternalAuth,
+        clienttoken: ClientToken,
+        widevine_license: Path | str,
     ) -> None:
+        if iauth.is_linked_with_account() is None:
+            iauth.authenticate()
+
+        if not iauth.is_linked_with_account():
+            raise RuntimeError(
+                "token cannot be anonymous when using widevine, did you pass sp_dc to iauth?"
+            )
+
         self.iauth: SpotifyInternalAuth = iauth
+        self.clienttoken: ClientToken = clienttoken
+
         self.device: Device = Device.load(widevine_license)
         self.cdm: Cdm = Cdm.from_device(self.device)
 
@@ -27,8 +41,9 @@ class WidevineClient(KeyProvider):
         pssh = PSSH(
             cast(
                 str,
-                requests.get(
-                    f"https://seektables.scdn.co/seektable/{file_id.decode()}.json"
+                curl_cffi.get(
+                    f"https://seektables.scdn.co/seektable/{file_id.decode()}.json",
+                    impersonate="chrome",
                 ).json()["pssh"],
             )
         )
@@ -36,28 +51,33 @@ class WidevineClient(KeyProvider):
         challenge = self.cdm.get_license_challenge(
             self.session,
             pssh,
-            license_type="AUTOMATIC",
+            license_type="STREAMING",
             privacy_mode=False,
         )
 
-        # TODO: keep getting 403 error
-        license = self.iauth.session.post(
+        license = curl_cffi.post(
             f"https://{get_random_spclient()[0]}/widevine-license/v1/audio/license",
-            headers={
-                "Accept": "*/*",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Accept-Language": "en",
-            },
             data=challenge,
+            headers={
+                "Authorization": f"Bearer {self.iauth.token}",
+                "Client-Token": self.clienttoken.token,
+            },
+            impersonate="chrome",
         )
         license.raise_for_status()
+
         self.cdm.parse_license(self.session, license.content)
 
         keys = self.cdm.get_keys(self.session)
+        ret: list[bytes] = []
 
-        key = random.choice(keys)
+        for key in keys:
+            if key.type.lower() != "content":
+                continue
 
-        return key.key
+            ret.append(f"{key.kid.hex}:{key.key.hex()}".encode())
+
+        return b" ".join(ret)
 
 
 if __name__ == "__main__":
