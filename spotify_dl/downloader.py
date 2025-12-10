@@ -11,7 +11,7 @@ import time
 
 from pathlib import Path
 from dataclasses import dataclass
-from queue import PriorityQueue, Queue
+from queue import Queue
 import traceback
 from typing import Any, Callable
 from requests import HTTPError
@@ -187,7 +187,7 @@ class SpotifyDownloadManager:
     ) -> None:
         self.queue: Queue[SpotifyDownloadParam] = Queue()
         self.threads: list[threading.Thread] = []
-        self._active: PriorityQueue[tuple[str, SpotifyDownloadState]] = PriorityQueue()
+        self._active: Queue[tuple[str, SpotifyDownloadState]] = Queue()
         self._cond: threading.Condition = threading.Condition()
         self.download_cb: Callable[[SpotifyDownloadState], Queue[bytes]] | None = (
             download_cb
