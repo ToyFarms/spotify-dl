@@ -2,17 +2,21 @@
 import io
 import math
 import struct
-import requests
 
 from Cryptodome.Cipher import AES
 from Cryptodome.Util import Counter
 from typing import Protocol, Self, override
 from collections import OrderedDict
 
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
+
 from spotify_dl.track import ReplayGain, TrackHeader
 
 # TODO: better separation on provider and reader
 # TODO: this is a mess
+
 
 class BytesStreamProtocol(Protocol):
     size: int
@@ -40,10 +44,22 @@ class ChunkedStream(ChunkedBytesStreamProtocol):
     def __init__(self, url: str, max_cached_chunks: int = 16):
         self.url: str = url
         self.session: requests.Session = requests.Session()
+        retry_strategy = Retry(
+            total=5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["HEAD", "GET", "OPTIONS"],
+            backoff_factor=1,
+            raise_on_status=False,
+            respect_retry_after_header=True,
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
 
-        head = self.session.head(url)
-        head.raise_for_status()
-        self.size: int = int(head.headers["Content-Length"])
+        res = self.session.get(url, headers={"Range": f"bytes=0-1024"})
+        res.raise_for_status()
+
+        self.size: int = int(res.headers["Content-Range"].split("/")[-1])
         self.total_chunks: int = math.ceil(self.size / self.CHUNK_SIZE)
 
         self._cache: OrderedDict[int, bytes] = OrderedDict()
@@ -198,6 +214,7 @@ class DecryptedSpotifyStream(EncryptedStream):
         return TrackHeader(
             replaygain=self._read_rg(),
         )
+
 
 class EncryptedSpotifyStream(ChunkedStream):
     def __init__(self, url: str, max_cached_chunks: int = 16) -> None:

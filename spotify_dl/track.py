@@ -7,11 +7,16 @@ from typing import Self, TypedDict, cast
 from urllib.parse import urlparse
 from dataclasses import dataclass
 
+import curl_cffi
+
 from spotify_dl.api.internal.proto.extension_kind_pb2 import ExtensionKind
+from spotify_dl.api.internal.spotify_client import SpotifyClient
 from spotify_dl.api.web.apresolve import get_random_spclient
+from spotify_dl.auth.clienttoken import ClientToken
 from spotify_dl.auth.web_auth import SpotifyAuthPKCE
 from spotify_dl.format import AudioFormat
-from spotify_dl.model.web import ManifestFileMP4, MediaResponse, TrackMetadata
+from spotify_dl.model.getTrack_gql import GraphQLResponse, TrackUnion
+from spotify_dl.model.web import ManifestFileMP4, MediaResponse
 from spotify_dl.utils.bytes_stuff import to_bytes
 from spotify_dl.api.internal.proto.extended_metadata_pb2 import (
     EntityRequest,
@@ -50,7 +55,7 @@ class Track:
         self.type: Track.Type = type
 
         # TODO: global caching system
-        self._metadata: TrackMetadata | None = None
+        self._metadata: TrackUnion | None = None
         self._metadata_internal: Metadata.Track | None = None
         self._manifest: MediaResponse | None = None
         self.format: AudioFormat | None = None
@@ -58,17 +63,27 @@ class Track:
     def get_mp4_manifest(
         self, auth: SpotifyAuthPKCE, file_id: str
     ) -> list[ManifestFileMP4]:
+        def get() -> list[ManifestFileMP4]:
+            # TODO: why is uri sometimes different in the response?
+            assert self._manifest
+            try:
+                return self._manifest["media"][uri]["item"]["manifest"]["file_ids_mp4"]
+            except KeyError:
+                return next(iter(self._manifest["media"].values()))["item"]["manifest"]["file_ids_mp4"]
+
         uri = f"spotify:track:{file_id}"
         if self._manifest:
-            return self._manifest["media"][uri]["item"]["manifest"]["file_ids_mp4"]
+            return get()
 
         res = auth.session.get(
             f"https://{get_random_spclient()[0]}/track-playback/v1/media/{uri}?manifestFileFormat=file_ids_mp4"
         )
         res.raise_for_status()
 
-        self._manifest = cast(MediaResponse, res.json())
-        return self._manifest["media"][uri]["item"]["manifest"]["file_ids_mp4"]
+        self._manifest = cast(
+            MediaResponse, res.json()  # pyright: ignore[reportUnknownMemberType]
+        )
+        return get()
 
     def get_metadata_internal(
         self,
@@ -97,30 +112,50 @@ class Track:
 
         return self._metadata_internal
 
-    def get_metadata(
-        self,
-        auth: SpotifyAuthPKCE,
-        fields: str | None = None,
-    ) -> TrackMetadata:
+    def get_metadata(self) -> TrackUnion:
+        from spotify_dl.state import state
+
         if self._metadata:
             return self._metadata
 
-        fields = f"&fields={fields}" if fields else ""
-        res = auth.session.get(
-            f"https://api.spotify.com/v1/tracks/{self.id_b62}{fields}?market=from_token",
-            headers={"Accept": "application/json"},
+        if not state.client:
+            state.client = SpotifyClient.random_ap(state.auth)
+
+        if not state.clienttoken:
+            state.clienttoken = ClientToken(state.client)
+
+        res = curl_cffi.post(
+            "https://api-partner.spotify.com/pathfinder/v2/query",
+            json={
+                "variables": {"uri": f"spotify:track:{self.id_b62}"},
+                "operationName": "getTrack",
+                "extensions": {
+                    "persistedQuery": {
+                        "version": 1,
+                        "sha256Hash": "d208301e63ccb8504831114cb8db1201636a016187d7c832c8c00933e2cd64c6",
+                    }
+                },
+            },
+            headers={
+                "authorization": f"Bearer {state.auth.token}",
+                "client-token": state.ensure_clienttoken().token,
+            },
+            impersonate="chrome",
         )
         res.raise_for_status()
+        json = cast(
+            GraphQLResponse, res.json()  # pyright: ignore[reportUnknownMemberType]
+        )
 
-        self._metadata = cast(TrackMetadata, res.json())
-        self.logger.debug(self._metadata_internal)
-
+        self._metadata = json["data"]["trackUnion"]
         return self._metadata
 
     def get_formats(self, auth: SpotifyAuthPKCE) -> list[AudioFormat]:
         metadata = self.get_metadata_internal(auth)
 
-        files: list[Metadata.AudioFile] | None = list(metadata.file)
+        files: list[Metadata.AudioFile] = list(metadata.file) or list(
+            metadata.alternative[0].file
+        )
         if not files:
             raise ValueError("Expecting a list of files")
 

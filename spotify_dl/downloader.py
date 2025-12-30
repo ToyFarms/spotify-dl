@@ -226,7 +226,7 @@ class SpotifyDownloadManager:
                     self._cond.notify_all()
 
                 self.logger.info(
-                    f"Now downloading: {param.track.get_metadata(param.auth)['name']}",
+                    f"Now downloading: {param.track.get_metadata()['name']}",
                 )
                 dl.download(
                     param.output,

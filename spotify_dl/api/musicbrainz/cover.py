@@ -1,14 +1,15 @@
 # pyright: reportAny=false
-import requests
 
 from enum import Enum, auto
 from typing import cast
 from collections.abc import Iterator
 from urllib.request import urlopen
 
+import curl_cffi
+
 from spotify_dl.api.musicbrainz.mbid import MBID
 from spotify_dl.model.coverartarchive import Art, ArtSize, ArtType, CAAResponse
-from spotify_dl.model.id3 import ID3PictureType
+from spotify_dl.model.id3 import ID3Picture
 
 
 class CoverArtType(Enum):
@@ -27,22 +28,22 @@ class CoverArtType(Enum):
     LINER = auto()
 
     @staticmethod
-    def to_id3(type: "CoverArtType") -> ID3PictureType:
+    def to_id3(type: "CoverArtType") -> ID3Picture:
         return {
-            CoverArtType.FRONT: ID3PictureType.FRONT_COVER,
-            CoverArtType.BACK: ID3PictureType.BACK_COVER,
-            CoverArtType.BOOKLET: ID3PictureType.LEAFLET_PAGE,
-            CoverArtType.MEDIUM: ID3PictureType.MEDIA,
-            CoverArtType.TRAY: ID3PictureType.BACK_COVER,
-            CoverArtType.OBI: ID3PictureType.OTHER,
-            CoverArtType.SPINE: ID3PictureType.OTHER,
-            CoverArtType.TRACK: ID3PictureType.OTHER,
-            CoverArtType.STICKER: ID3PictureType.OTHER,
-            CoverArtType.OTHER: ID3PictureType.OTHER,
-            CoverArtType.POSTER: ID3PictureType.OTHER,
-            CoverArtType.WATERMARK: ID3PictureType.OTHER,
-            CoverArtType.LINER: ID3PictureType.LEAFLET_PAGE,
-        }.get(type, ID3PictureType.OTHER)
+            CoverArtType.FRONT: ID3Picture.FRONT_COVER,
+            CoverArtType.BACK: ID3Picture.BACK_COVER,
+            CoverArtType.BOOKLET: ID3Picture.LEAFLET_PAGE,
+            CoverArtType.MEDIUM: ID3Picture.MEDIA,
+            CoverArtType.TRAY: ID3Picture.BACK_COVER,
+            CoverArtType.OBI: ID3Picture.OTHER,
+            CoverArtType.SPINE: ID3Picture.OTHER,
+            CoverArtType.TRACK: ID3Picture.OTHER,
+            CoverArtType.STICKER: ID3Picture.OTHER,
+            CoverArtType.OTHER: ID3Picture.OTHER,
+            CoverArtType.POSTER: ID3Picture.OTHER,
+            CoverArtType.WATERMARK: ID3Picture.OTHER,
+            CoverArtType.LINER: ID3Picture.LEAFLET_PAGE,
+        }.get(type, ID3Picture.OTHER)
 
 
 class CoverArt:
@@ -58,7 +59,7 @@ class CoverArt:
         return CoverArtType[self.data["types"][0].upper()]
 
     @property
-    def type_as_id3(self) -> ID3PictureType:
+    def type_as_id3(self) -> ID3Picture:
         return CoverArtType.to_id3(self.type)
 
 
@@ -94,7 +95,7 @@ class CoverArts:
         return art.fetch(size)
 
     def _request(self) -> CAAResponse:
-        res = requests.get(f"https://coverartarchive.org/release/{self.mbid.id}")
+        res = curl_cffi.get(f"https://coverartarchive.org/release/{self.mbid.id}", impersonate="chrome")
         res.raise_for_status()
 
         return cast(CAAResponse, res.json())

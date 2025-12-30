@@ -3,6 +3,7 @@ import io
 import logging
 import base64
 
+import curl_cffi
 from mutagen.id3 import (
     ID3,
     TIT2,
@@ -29,14 +30,12 @@ from urllib.request import urlopen
 from enum import Enum, auto
 from urllib.parse import quote
 
-from spotify_dl.api.musicbrainz.mbid import MBID
 from spotify_dl.auth.web_auth import SpotifyAuthPKCE
 from spotify_dl.format import AudioCodec
-from spotify_dl.model.id3 import ID3PictureType
-from spotify_dl.model.web import ArtistMetadata
+from spotify_dl.model.id3 import ID3Picture
 from spotify_dl.track import ReplayGain, Track
-from spotify_dl.api.musicbrainz.cover import CoverArts
 from spotify_dl.utils.misc import url_build
+from spotify_dl.model.getAlbum_gql import GraphQLResponse
 
 
 class MetadataFormat(Enum):
@@ -77,7 +76,7 @@ class MetadataProtocol(Protocol):
         self,
         img_data: bytes | None,
         desc: str | None,
-        type: int | ID3PictureType | None,
+        type: int | ID3Picture | None,
     ) -> None: ...
     def lyrics_synced(self, x: list[tuple[str, int]], lang_iso3: str) -> None: ...
     def lyrics(self, x: list[str], lang_iso3: str) -> None: ...
@@ -254,7 +253,7 @@ class MetadataProviderID3(MetadataProtocol, ReplayGainProtocol, BaseMetadataProv
         self,
         img_data: bytes | None,
         desc: str | None,
-        type: int | ID3PictureType | None,
+        type: int | ID3Picture | None,
     ) -> None:
         if not img_data or not type:
             self.logger.warning(f"{self.file!r} does not have picture {desc}: {type}")
@@ -332,7 +331,7 @@ class MetadataProviderAtoms(MetadataProtocol, ReplayGainProtocol, BaseMetadataPr
         if not self.tags.tags:
             self.tags.tags = MP4Tags()
 
-        self.tags.tags["REPLAYGAIN_TRACK_GAIN"] = [str(x)]
+        self.tags.tags["----:replaygain_track_gain"] = [str(x)]
 
     @override
     def track_peak(self, x: float | None) -> None:
@@ -342,7 +341,7 @@ class MetadataProviderAtoms(MetadataProtocol, ReplayGainProtocol, BaseMetadataPr
         if not self.tags.tags:
             self.tags.tags = MP4Tags()
 
-        self.tags.tags["REPLAYGAIN_TRACK_PEAK"] = [str(x)]
+        self.tags.tags["----:replaygain_track_peak"] = [str(x)]
 
     @override
     def album_gain(self, x: float | None) -> None:
@@ -352,7 +351,7 @@ class MetadataProviderAtoms(MetadataProtocol, ReplayGainProtocol, BaseMetadataPr
         if not self.tags.tags:
             self.tags.tags = MP4Tags()
 
-        self.tags.tags["REPLAYGAIN_ALBUM_GAIN"] = [str(x)]
+        self.tags.tags["----:replaygain_album_gain"] = [str(x)]
 
     @override
     def album_peak(self, x: float | None) -> None:
@@ -362,7 +361,7 @@ class MetadataProviderAtoms(MetadataProtocol, ReplayGainProtocol, BaseMetadataPr
         if not self.tags.tags:
             self.tags.tags = MP4Tags()
 
-        self.tags.tags["REPLAYGAIN_ALBUM_PEAK"] = [str(x)]
+        self.tags.tags["----:replaygain_album_peak"] = [str(x)]
 
     @override
     def title(self, x: str | None) -> None:
@@ -443,7 +442,7 @@ class MetadataProviderAtoms(MetadataProtocol, ReplayGainProtocol, BaseMetadataPr
         self,
         img_data: bytes | None,
         desc: str | None,
-        type: int | ID3PictureType | None,
+        type: int | ID3Picture | None,
     ) -> None:
         if not img_data:
             self.logger.warning(f"{self.file!r} does not have picture {desc}: {type}")
@@ -586,7 +585,7 @@ class MetadataProviderVorbisComment(
         self,
         img_data: bytes | None,
         desc: str | None,
-        type: int | ID3PictureType | None,
+        type: int | ID3Picture | None,
     ) -> None:
         if not img_data or not type:
             self.logger.warning(f"{self.file!r} missing picture metadata")
@@ -651,108 +650,136 @@ def apply_metadata(
 
     provider = provider_cls(path, codec)
 
-    meta = track.get_metadata(auth)
+    meta = track.get_metadata()
     meta2 = track.get_metadata_internal(auth)
 
-    provider.title(meta.get("name"))
-    provider.artists(list(map(lambda x: x["name"], meta.get("artists", []))))
+    provider.title(meta["name"])
+    provider.artists(
+        list(
+            map(
+                lambda x: x["artist"]["profile"]["name"],
+                meta["artistsWithRoles"]["items"],
+            )
+        )
+    )
 
-    album = meta.get("album")
-    isrc = meta.get("external_ids", {}).get("isrc")
-    if album:
-        provider.album_name(album.get("name"))
-        provider.recording_time(album.get("release_date"))
+    from spotify_dl.state import state
 
-        track_number = meta.get("track_number", 1)
-        total_track = album.get("total_tracks", 1)
-        disc_number = meta.get("disc_number", 1)
-        total_disc = album.get("total_discs", 1)
+    res = curl_cffi.post(
+        "https://api-partner.spotify.com/pathfinder/v2/query",
+        json={
+            "variables": {
+                "uri": f"spotify:album:{meta['albumOfTrack']['id']}",
+                "locale": "",
+                "offset": 0,
+                "limit": 1,
+            },
+            "operationName": "getAlbum",
+            "extensions": {
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "46ae954ef2d2fe7732b4b2b4022157b2e18b7ea84f70591ceb164e4de1b5d5d3",
+                }
+            },
+        },
+        headers={
+            "authorization": f"Bearer {state.auth.token}",
+            "client-token": state.ensure_clienttoken().token,
+        },
+        impersonate="chrome",
+    )
+    res.raise_for_status()
+    album = cast(GraphQLResponse, res.json())["data"]["albumUnion"]
+    provider.album_name(album["name"])
+    provider.recording_time(album["date"]["isoString"])
 
-        provider.track_number(f"{track_number}/{total_track}")
-        provider.disc_number(f"{disc_number}/{total_disc}")
+    track_number = meta["trackNumber"]
+    total_track = album["tracks"]["totalCount"]
 
-        # use_mb = cast(str | None, isrc) is not None
-        use_mb = False  # see TODO
+    disc_number = meta2.disc_number
+    total_disc = album["discs"]["totalCount"]
 
-        if use_mb:
-            arts = CoverArts(MBID.from_isrc(isrc))
-            images = list(arts.get_images())
+    provider.track_number(f"{track_number}/{total_track}")
+    provider.disc_number(f"{disc_number}/{total_disc}")
 
-            if not images:
-                use_mb = False
+    images = album["coverArt"]["sources"]
+    cover = _get_highest_resolution(images, key=lambda x: (x["width"], x["height"]))
+    if cover:
+        data = urlopen(cover["url"])
+        provider.picture(data.read(), "Cover", ID3Picture.FRONT_COVER)
 
-            for art in images:
-                data = art.fetch("1200")
-                provider.picture(
-                    data,
-                    art.data["comment"] or art.type.name.title(),
-                    art.type_as_id3.value,
+    if meta2.has_lyrics and album["coverArt"]:
+        url = url_build(
+            (
+                "https://spclient.wg.spotify.com/color-lyrics/v2/track/"
+                f"{track.id_b62}/image/{quote(album['coverArt']['sources'][0]['url'], safe='')}"
+            ),
+            format="json",
+            vocalRemoval="false",
+            market="from_token",
+        )
+        res = auth.session.get(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+                "app-platform": "WebPlayer",
+            },
+        )
+        if res.status_code == 200:
+            json = res.json().get(  # pyright: ignore[reportUnknownVariableType]
+                "lyrics"
+            )
+            if json:
+                type = json.get(  # pyright: ignore[reportUnknownVariableType]
+                    "syncType"
                 )
 
-        if not use_mb:
-            images = album.get("images", [])
-            cover = _get_highest_resolution(
-                images, key=lambda x: (x["width"], x["height"])
-            )
-            if cover:
-                data = urlopen(cover["url"])
-                provider.picture(data.read(), "Cover", ID3PictureType.FRONT_COVER)
+                if type == "LINE_SYNCED":
+                    lyrics_synced: list[tuple[str, int]] = [
+                        (
+                            line["words"],
+                            int(
+                                line[
+                                    "startTimeMs"
+                                ]  # pyright: ignore[reportUnknownArgumentType]
+                            ),
+                        )
+                        for line in json.get(  # pyright: ignore[reportUnknownVariableType]
+                            "lines", []
+                        )
+                    ]
 
-        if meta2.has_lyrics and album.get("images"):
-            url = url_build(
-                (
-                    "https://spclient.wg.spotify.com/color-lyrics/v2/track/"
-                    f"{track.id_b62}/image/{quote(album['images'][0]['url'], safe='')}"
-                ),
-                format="json",
-                vocalRemoval="false",
-                market="from_token",
-            )
-            res = auth.session.get(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-                    "app-platform": "WebPlayer",
-                },
-            )
-            if res.status_code == 200:
-                json = res.json().get("lyrics")
-                if json:
-                    type = json.get("syncType")
-
-                    if type == "LINE_SYNCED":
-                        lyrics_synced: list[tuple[str, int]] = [
-                            (line["words"], int(line["startTimeMs"]))
-                            for line in json.get("lines", [])
-                        ]
-
-                        provider.lyrics_synced(lyrics_synced, "xxx")
-                    else:
-                        lyrics: list[str] = [
-                            line["words"] for line in json.get("lines", [])
-                        ]
-                        provider.lyrics(lyrics, "xxx")
+                    provider.lyrics_synced(lyrics_synced, "xxx")
                 else:
-                    logger.error("Expecting lyrics but found NONE")
-
+                    lyrics: list[str] = [
+                        line["words"]
+                        for line in json.get(  # pyright: ignore[reportUnknownVariableType]
+                            "lines", []
+                        )
+                    ]
+                    provider.lyrics(lyrics, "xxx")
             else:
-                logger.error(
-                    f"Failed to fetch lyric from {url!r} ({res.status_code}): {res.reason}"
-                )
-    else:
-        logger.warning("No album info found")
+                logger.error("Expecting lyrics but found NONE")
 
-    for artist in meta.get("artists", []):
-        artist_meta: ArtistMetadata = auth.session.get(artist["href"]).json()
-        images = artist_meta.get("images", [])
+        else:
+            logger.error(
+                f"Failed to fetch lyric from {url!r} ({res.status_code}): {res.reason}"
+            )
+
+    for artist in meta["artistsWithRoles"]["items"]:
+        images = artist["artist"]["visuals"]["avatarImage"]["sources"]
         cover = _get_highest_resolution(images, key=lambda x: (x["width"], x["height"]))
         if cover:
             data = urlopen(cover["url"])
-            provider.picture(data.read(), artist_meta["name"], ID3PictureType.ARTIST)
+            provider.picture(
+                data.read(), artist["artist"]["profile"]["name"], ID3Picture.ARTIST
+            )
 
-    provider.isrc(isrc)
-    if meta.get("popularity", 0) != 0:
-        provider.popularity(int(meta.get("popularity", 0) * 2.55))
+    for id in meta2.external_id:
+        if id.type == "isrc":
+            provider.isrc(id.id)
+
+    provider.popularity(meta2.popularity)
 
     if replaygain:
         provider.track_gain(replaygain.track_gain_db)

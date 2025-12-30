@@ -1,5 +1,6 @@
 from typing import TypedDict, cast
-from requests import Session
+
+import curl_cffi
 
 
 class StorageResolve(TypedDict):
@@ -9,7 +10,7 @@ class StorageResolve(TypedDict):
     ttl: int
 
 
-def storage_resolve(session: Session, file_id: str) -> StorageResolve:
+def storage_resolve(session: curl_cffi.Session, file_id: str) -> StorageResolve:
     res = session.get(
         f"https://gew4-spclient.spotify.com/storage-resolve/v2/files/audio/interactive/10/{file_id}",
         params={
@@ -18,8 +19,9 @@ def storage_resolve(session: Session, file_id: str) -> StorageResolve:
             "platform": 39,
             "alt": "json",
         },
+        impersonate="chrome",
     )
 
     res.raise_for_status()
 
-    return cast(StorageResolve, res.json())
+    return cast(StorageResolve, res.json())  # pyright: ignore[reportUnknownMemberType]

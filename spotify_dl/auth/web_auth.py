@@ -8,11 +8,11 @@ import threading
 import time
 import typing
 import webbrowser
-import requests
 import sys
 
+import curl_cffi
 from flask import Flask, request
-from typing import TypeGuard, TypedDict, final, override
+from typing import Any, TypeGuard, TypedDict, final, override
 
 from spotify_dl.auth.auth_provider import AuthProvider
 from spotify_dl.utils.misc import url_build
@@ -182,23 +182,25 @@ class SpotifyAuthPKCE(AuthProvider[SpotifyTokenSchema]):
 
         return code
 
-    def _request_token(self, data: dict[str, object]) -> SpotifyTokenSchema:
-        res = requests.post(
+    def _request_token(self, data: dict[str, Any]) -> SpotifyTokenSchema:  # pyright: ignore[reportExplicitAny]
+        res = curl_cffi.post(
             "https://accounts.spotify.com/api/token",
             data=data,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
+            impersonate="chrome"
         )
         res.raise_for_status()
 
-        return typing.cast(SpotifyTokenSchema, res.json())
+        return typing.cast(SpotifyTokenSchema, res.json())  # pyright: ignore[reportUnknownMemberType]
 
     @override
     def _save(self, token: SpotifyTokenSchema | None) -> None:
-        token["expires_at"] = int(time.time()) + token["expires_in"]
+        if token:
+            token["expires_at"] = int(time.time()) + token["expires_in"]
         refresh_token = self._token.get("refresh_token") if self._token else None
         super()._save(token)
 
-        if self._token and not token.get("refresh_token") and refresh_token:
+        if self._token and (token and not token.get("refresh_token")) and refresh_token:
             self._token["refresh_token"] = refresh_token
 
 

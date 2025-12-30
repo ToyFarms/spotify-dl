@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class ID3PictureType(Enum):
+class ID3Picture(Enum):
     OTHER = 0
     FILE_ICON = 1
     OTHER_FILE_ICON = 2

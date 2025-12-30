@@ -1,7 +1,8 @@
 import time
 from typing import TypeGuard, TypedDict, override
 
-import requests
+import curl_cffi
+
 from spotify_dl.api.internal.proto.connectivity_pb2 import (
     ConnectivitySdkData,
     NativeDesktopLinuxData,
@@ -52,12 +53,13 @@ class ClientToken(AuthProvider[ClientTokenSchema]):
             ),
         )
 
-        resp = requests.post(
+        resp = curl_cffi.post(
             "https://clienttoken.spotify.com/v1/clienttoken",
             headers={
                 "Accept": "application/x-protobuf",
             },
             data=req.SerializeToString(),
+            impersonate="chrome",
         )
         resp.raise_for_status()
 

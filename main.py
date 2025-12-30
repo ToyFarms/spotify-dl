@@ -29,12 +29,14 @@ import argparse
 import shlex
 import logging
 import subprocess
+import curl_cffi
 import yt_dlp
 from faker import Faker
 
 from spotify_dl.auth.clienttoken import ClientToken
 from spotify_dl.auth.login5 import Login5Auth
 from spotify_dl.auth.spdc import SpDCAuth
+from spotify_dl.state import state
 
 fake = Faker()
 
@@ -44,8 +46,7 @@ requests.utils.default_user_agent = lambda: fake.user_agent()
 
 from typing import Any, Callable, Literal, TypedDict, cast, overload, override
 from pathlib import Path
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from collections.abc import Iterable
 
 from yt_dlp.utils import DownloadError
 
@@ -59,7 +60,6 @@ from spotify_dl.auth.web_auth import SpotifyAuthPKCE
 # from spotify_dl.cli import CLI
 from spotify_dl.downloader import (
     SpotifyDownloadParam,
-    SpotifyDownloadManager,
 )
 from spotify_dl.format import AudioCodec, AudioFormat, AudioQuality
 from spotify_dl.metadata import apply_metadata
@@ -81,15 +81,35 @@ def get_username(auth: SpotifyAuthPKCE) -> str:
     if auth.require_login():
         return "Logged Out"
 
-    res = auth.session.get("https://api.spotify.com/v1/me")
+    res = curl_cffi.post(
+        "https://api-partner.spotify.com/pathfinder/v2/query",
+        json={
+            "variables": {},
+            "operationName": "profileAttributes",
+            "extensions": {
+                "persistedQuery": {
+                    "version": 1,
+                    "sha256Hash": "53bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced",
+                }
+            },
+        },
+        headers={
+            "authorization": f"Bearer {state.auth.token}",
+            "client-token": state.ensure_clienttoken().token,
+        },
+        impersonate="chrome",
+    )
+    res.raise_for_status()
 
     if res.status_code != 200:
-        print(
-            f"Failed to get username ({res.status_code}): {res.json()['error']['message']}"
-        )
-        return "?"
+        try:
+            print(
+                f"Failed to get username ({res.status_code}): {res.json()['error']['message']}"  # pyright: ignore[reportUnknownMemberType]
+            )
+        finally:
+            return "?"
 
-    return cast(dict[str, str], res.json()).get("display_name", "?")
+    return cast(dict[str, str], res.json()).get("data", {}).get("me", {}).get("profile", {}).get("name", "?")  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
 
 
 @overload
@@ -172,25 +192,6 @@ class CommandParser(argparse.ArgumentParser):
         return self
 
 
-@dataclass
-class AppState:
-    auth: SpotifyAuthPKCE
-    iauth: SpotifyInternalAuth | None = None
-    name: str | None = None
-    client: SpotifyClient | None = None
-    running: bool = True
-    last_json_output: Mapping[str, object] | str = field(default_factory=lambda: dict())
-    dir: Path | None = None
-    download_manager: SpotifyDownloadManager = field(
-        default_factory=lambda: SpotifyDownloadManager(concurrent_download=2)
-    )
-    volume: float = 100
-    widevine: WidevineClient | None = None
-    playplay: PlayPlay | None = None
-    login5: Login5Auth | None = None
-    clienttoken: ClientToken | None = None
-
-
 HISTORY_FILE = Path(".spotifydl_history")
 
 
@@ -242,10 +243,6 @@ def main() -> None:
 
     if program_args.verbose:
         logging.basicConfig(level=logging.DEBUG)
-
-    state = AppState(
-        auth=SpotifyAuthPKCE("user-read-private streaming"),
-    )
     state.iauth = SpotifyInternalAuth()
 
     state.name = get_username(state.auth)
@@ -293,7 +290,7 @@ def main() -> None:
 
                 try:
                     track = Track.probe(uri)
-                    meta = track.get_metadata(state.auth)
+                    meta = track.get_metadata()
                     print_table(meta)
                     state.last_json_output = meta
                 except Exception as e:
@@ -357,9 +354,9 @@ def main() -> None:
                 def search(n: int) -> list[Entry]:
                     ret: list[Entry] = []
                     with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-                        artists = " ".join(artist.name for artist in meta.artist)
+                        artists = " ".join(artist.name for artist in meta.artist)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
                         info = ydl.extract_info(
-                            f"ytsearch{n}:{artists} {meta.name}", download=False
+                            f"ytsearch{n}:{artists} {meta.name}", download=False  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
                         )
 
                         for entry in cast(
@@ -414,7 +411,7 @@ def main() -> None:
                 if not entry:
                     continue
 
-                fmt = choose_best_audio_format(entry["formats"])
+                fmt = choose_best_audio_format(entry["formats"])  # pyright: ignore[reportArgumentType]
 
                 out_name = (
                     f"{', '.join(a.name for a in meta.artist)} - {meta.name}.%(ext)s"
@@ -506,14 +503,14 @@ def main() -> None:
 
                 try:
                     with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
-                        ydl2.download([entry["url"]])
+                        ydl2.download([entry["url"]])  # pyright: ignore[reportArgumentType]
                 except DownloadError as e:
                     print(
                         f"Requested format not available, falling back to 'bestaudio'. Error: {e}"
                     )
                     ydl_download_opts["format"] = "bestaudio"
                     with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
-                        ydl2.download([entry["url"]])
+                        ydl2.download([entry["url"]])  # pyright: ignore[reportArgumentType]
 
             case ["download" | "dl", *rest]:
                 if state.auth.require_login():
@@ -703,8 +700,8 @@ def main() -> None:
                     print(res.reason)
                     continue
 
-                if "application/json" in res.headers["Content-Type"]:
-                    print(json.dumps(res.json(), ensure_ascii=False, indent=4))
+                if "application/json" in res.headers["Content-Type"]:  # pyright: ignore[reportOperatorIssue]
+                    print(json.dumps(res.json(), ensure_ascii=False, indent=4))  # pyright: ignore[reportUnknownMemberType]
                 else:
                     print(res.content)
             case ["verbose"]:

@@ -1,8 +1,9 @@
 import time
 import typing
-import requests
 
 from typing import TypeGuard, TypedDict, override
+
+import curl_cffi
 
 from spotify_dl.api.internal.totp import create_otp_auth_url
 from spotify_dl.auth.auth_provider import AuthProvider
@@ -87,10 +88,10 @@ class SpotifyInternalAuth(AuthProvider[SpotifyITokenSchema]):
         if self.sp_dc:
             res = self.sp_dc.session.get(url)
         else:
-            res = requests.get(url)  # anonymous token
+            res = curl_cffi.get(url, impersonate="chrome")  # anonymous token
         res.raise_for_status()
 
-        return typing.cast(SpotifyITokenSchema, res.json())
+        return typing.cast(SpotifyITokenSchema, res.json())  # pyright: ignore[reportUnknownMemberType]
 
     @override
     def _save(self, token: SpotifyITokenSchema | None) -> None:

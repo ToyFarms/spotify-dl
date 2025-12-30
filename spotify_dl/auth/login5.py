@@ -1,7 +1,7 @@
 import base64
 import time
 from typing import TypeGuard, TypedDict, final, override
-import requests
+import curl_cffi
 from spotify_dl.api.internal.proto.spotify.login5.v3.client_info_pb2 import ClientInfo
 from spotify_dl.api.internal.proto.spotify.login5.v3.credentials.credentials_pb2 import (
     StoredCredential,
@@ -45,7 +45,7 @@ class Login5Auth(AuthProvider[Login5TokenSchema]):
         )
 
         def req(_req: LoginRequest) -> bytes:
-            res = requests.post(
+            res = curl_cffi.post(
                 "https://login5.spotify.com/v3/login",
                 data=_req.SerializeToString(),
                 headers={
@@ -53,6 +53,7 @@ class Login5Auth(AuthProvider[Login5TokenSchema]):
                     "Accept": "application/x-protobuf",
                     "Client-Token": self.clienttoken.token
                 },
+                impersonate="chrome",
             )
             res.raise_for_status()
 
