@@ -42,7 +42,7 @@ import requests
 
 requests.utils.default_user_agent = lambda: fake.user_agent()
 
-from typing import Any, Callable, TypedDict, cast, override
+from typing import Any, Callable, Literal, TypedDict, cast, overload, override
 from pathlib import Path
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -92,13 +92,33 @@ def get_username(auth: SpotifyAuthPKCE) -> str:
     return cast(dict[str, str], res.json()).get("display_name", "?")
 
 
+@overload
+def prompt[T](
+    prompt: str,
+    items: Iterable[T],
+    default: T | None = None,
+    repr_fun: Callable[[T, int | None], str] = ...,
+    greedy: Literal[False] = False,
+) -> T | None: ...
+
+
+@overload
+def prompt[T](
+    prompt: str,
+    items: Iterable[T],
+    default: T | None = None,
+    repr_fun: Callable[[T, int | None], str] = ...,
+    greedy: Literal[True] = True,
+) -> T | str | None: ...
+
+
 def prompt[T](
     prompt: str,
     items: Iterable[T],
     default: T | None = None,
     repr_fun: Callable[[T, int | None], str] = lambda x, _: str(x),
     greedy: bool = False,
-) -> T | None:
+) -> object:
     items = list(items)
 
     for i, item in enumerate(items, 1):
@@ -326,157 +346,174 @@ def main() -> None:
                     "no_warnings": True,
                 }
 
-                with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-                    artists = " ".join(artist.name for artist in meta.artist)
-                    info = ydl.extract_info(
-                        f"ytsearch5:{artists} {meta.name}", download=False
-                    )
+                class Entry(TypedDict):
+                    artist: str
+                    title: str
+                    duration: int
+                    views: int
+                    url: str
+                    formats: list[dict[str, object]]
 
-                    class Entry(TypedDict):
-                        artist: str
-                        title: str
-                        duration: int
-                        views: int
-                        url: str
-                        formats: list[dict[str, object]]
-
-                    formatted: list[Entry] = []
-                    for entry in cast(list[dict[str, object]], info.get("entries", [])):
-                        artist = (
-                            entry.get("artist")
-                            or entry.get("uploader")
-                            or entry.get("uploader_id")
-                            or "Unknown Artist"
-                        )
-                        title = entry.get("title", "Unknown Title")
-                        duration = entry.get("duration", 0)
-                        views = entry.get("view_count", 0)
-                        url = (
-                            entry.get("webpage_url")
-                            or entry.get("url")
-                            or f"ytsearch:{title}"
-                        )
-                        formats = entry.get("formats", [])
-
-                        formatted.append(
-                            {
-                                "artist": cast(str, artist),
-                                "title": cast(str, title),
-                                "duration": cast(int, duration),
-                                "views": cast(int, views),
-                                "url": cast(str, url),
-                                "formats": cast(list[dict[str, object]], formats),
-                            }
+                def search(n: int) -> list[Entry]:
+                    ret: list[Entry] = []
+                    with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+                        artists = " ".join(artist.name for artist in meta.artist)
+                        info = ydl.extract_info(
+                            f"ytsearch{n}:{artists} {meta.name}", download=False
                         )
 
+                        for entry in cast(
+                            list[dict[str, object]], info.get("entries", [])
+                        ):
+                            artist = (
+                                entry.get("artist")
+                                or entry.get("uploader")
+                                or entry.get("uploader_id")
+                                or "Unknown Artist"
+                            )
+                            title = entry.get("title", "Unknown Title")
+                            duration = entry.get("duration", 0)
+                            views = entry.get("view_count", 0)
+                            url = (
+                                entry.get("webpage_url")
+                                or entry.get("url")
+                                or f"ytsearch:{title}"
+                            )
+                            formats = entry.get("formats", [])
+
+                            ret.append(
+                                {
+                                    "artist": cast(str, artist),
+                                    "title": cast(str, title),
+                                    "duration": cast(int, duration),
+                                    "views": cast(int, views),
+                                    "url": cast(str, url),
+                                    "formats": cast(list[dict[str, object]], formats),
+                                }
+                            )
+
+                    return ret
+
+                n = 15
+                formatted = search(n)
+                while True:
                     entry = prompt(
                         "Select the video",
                         formatted,
                         default=formatted[0],
+                        greedy=True,
                         repr_fun=lambda x, _: f"{x['artist']} - {x['title']} (duration={x['duration']:_} views={x['views']:_})",
                     )
 
-                    if not entry:
-                        continue
+                    if isinstance(entry, str) and entry.startswith("!next"):
+                        n *= 2
+                        formatted = search(n)
+                    else:
+                        break
 
-                    fmt = choose_best_audio_format(entry["formats"])
+                if not entry:
+                    continue
 
-                    out_name = f"{', '.join(a.name for a in meta.artist)} - {meta.name}.%(ext)s"
-                    path = Path(out_name)
-                    if state.dir:
-                        path = state.dir.expanduser().absolute() / path
-                    outtmpl = str(path)
+                fmt = choose_best_audio_format(entry["formats"])
 
-                    def hook(d: dict[str, object]) -> None:
-                        if d.get("status") == "finished":
-                            downloaded = cast(
-                                str | None,
-                                (
-                                    d.get("filename")
-                                    or cast(
-                                        dict[str, object], d.get("info_dict", {})
-                                    ).get("_filename")
-                                    or cast(
-                                        dict[str, object], d.get("info_dict", {})
-                                    ).get("filepath")
-                                ),
-                            )
-                            if not downloaded:
-                                print(
-                                    "Warning: finished hook called but no filename was reported by yt-dlp."
+                out_name = (
+                    f"{', '.join(a.name for a in meta.artist)} - {meta.name}.%(ext)s"
+                )
+                path = Path(out_name)
+                if state.dir:
+                    path = state.dir.expanduser().absolute() / path
+                outtmpl = str(path)
+
+                def hook(d: dict[str, object]) -> None:
+                    if d.get("status") == "finished":
+                        downloaded = cast(
+                            str | None,
+                            (
+                                d.get("filename")
+                                or cast(dict[str, object], d.get("info_dict", {})).get(
+                                    "_filename"
                                 )
-                                return
-
-                            downloaded_path = Path(downloaded)
-
-                            if downloaded_path.suffix.lower() not in (".ogg", ".opus"):
-                                out = downloaded_path.with_suffix(".ogg")
-                                ffmpeg_cmd = [
-                                    "ffmpeg",
-                                    "-y",
-                                    "-i",
-                                    str(downloaded_path),
-                                    "-c:a",
-                                    "libvorbis",
-                                    "-q:a",
-                                    "6",
-                                    str(out),
-                                ]
-                                try:
-                                    _ = subprocess.run(
-                                        ffmpeg_cmd,
-                                        check=True,
-                                        stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE,
-                                    )
-                                except subprocess.CalledProcessError as e:
-                                    print(
-                                        f"Failed to convert to oggvorbis: {e.stderr.decode(errors='ignore')}"
-                                    )
-                                    downloaded_path = downloaded_path
-                                else:
-                                    try:
-                                        os.remove(downloaded_path)
-                                    except OSError:
-                                        pass
-                                    downloaded_path = out
-
-                            track.set_format(
-                                AudioFormat.from_codec(
-                                    AudioCodec.from_file(
-                                        str(downloaded_path), extension_fallback=True
-                                    ),
-                                    AudioQuality.NORMAL,
+                                or cast(dict[str, object], d.get("info_dict", {})).get(
+                                    "filepath"
                                 )
-                            )
-                            apply_metadata(track, str(downloaded_path), state.auth)
-
-                    ydl_download_opts = {
-                        "format": (fmt["format_id"] if fmt else "bestaudio"),
-                        "outtmpl": outtmpl,
-                        "noplaylist": True,
-                        "quiet": False,
-                        "progress_hooks": [hook],
-                        "postprocessors": [],
-                        "postprocessor_args": {},
-                        "addmetadata": False,
-                        "embed_metadata": False,
-                        "embedthumbnail": False,
-                        "writethumbnail": False,
-                        "writeinfojson": False,
-                        "xattrs": False,
-                    }
-
-                    try:
-                        with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
-                            ydl2.download([entry["url"]])
-                    except DownloadError as e:
-                        print(
-                            f"Requested format not available, falling back to 'bestaudio'. Error: {e}"
+                            ),
                         )
-                        ydl_download_opts["format"] = "bestaudio"
-                        with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
-                            ydl2.download([entry["url"]])
+                        if not downloaded:
+                            print(
+                                "Warning: finished hook called but no filename was reported by yt-dlp."
+                            )
+                            return
+
+                        downloaded_path = Path(downloaded)
+
+                        if downloaded_path.suffix.lower() not in (".ogg", ".opus"):
+                            out = downloaded_path.with_suffix(".ogg")
+                            ffmpeg_cmd = [
+                                "ffmpeg",
+                                "-y",
+                                "-i",
+                                str(downloaded_path),
+                                "-c:a",
+                                "libvorbis",
+                                "-q:a",
+                                "6",
+                                str(out),
+                            ]
+                            try:
+                                _ = subprocess.run(
+                                    ffmpeg_cmd,
+                                    check=True,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                )
+                            except subprocess.CalledProcessError as e:
+                                print(
+                                    f"Failed to convert to oggvorbis: {e.stderr.decode(errors='ignore')}"
+                                )
+                                downloaded_path = downloaded_path
+                            else:
+                                try:
+                                    os.remove(downloaded_path)
+                                except OSError:
+                                    pass
+                                downloaded_path = out
+
+                        track.set_format(
+                            AudioFormat.from_codec(
+                                AudioCodec.from_file(
+                                    str(downloaded_path), extension_fallback=True
+                                ),
+                                AudioQuality.NORMAL,
+                            )
+                        )
+                        apply_metadata(track, str(downloaded_path), state.auth)
+
+                ydl_download_opts = {
+                    "format": (fmt["format_id"] if fmt else "bestaudio"),
+                    "outtmpl": outtmpl,
+                    "noplaylist": True,
+                    "quiet": False,
+                    "progress_hooks": [hook],
+                    "postprocessors": [],
+                    "postprocessor_args": {},
+                    "addmetadata": False,
+                    "embed_metadata": False,
+                    "embedthumbnail": False,
+                    "writethumbnail": False,
+                    "writeinfojson": False,
+                    "xattrs": False,
+                }
+
+                try:
+                    with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
+                        ydl2.download([entry["url"]])
+                except DownloadError as e:
+                    print(
+                        f"Requested format not available, falling back to 'bestaudio'. Error: {e}"
+                    )
+                    ydl_download_opts["format"] = "bestaudio"
+                    with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
+                        ydl2.download([entry["url"]])
 
             case ["download" | "dl", *rest]:
                 if state.auth.require_login():
