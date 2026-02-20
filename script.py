@@ -270,7 +270,7 @@ def build_bento4():
             cmake_args += [
                 f"-DCMAKE_C_FLAGS_RELEASE={common_flags}",
                 f"-DCMAKE_CXX_FLAGS_RELEASE={common_flags}",
-                f"-DCMAKE_EXE_LINKER_FLAGS_RELEASE=-s",
+                f"-DCMAKE_EXE_LINKER_FLAGS_RELEASE=-s -static-libgcc -static-libstdc++",
                 "-DCMAKE_STRIP=strip",
             ]
         elif ttype == "msvc":
@@ -380,7 +380,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
     for t in build_tasks:
         run_task(t)
 
-    print("All requested builds finished.")
+    print("all requested builds finished.")
 
 
 def main() -> None:
@@ -433,6 +433,16 @@ def main() -> None:
     args = parser.parse_args()
     if args.cmd == "build-bento4":
         build_bento4()
+        cp = shutil.which("cp") or shutil.which("copy")
+        Path("binaries").mkdir(exist_ok=True)
+        try:
+            call([cp, "build/linux-release/mp4decrypt", "binaries"])
+        except:
+            pass
+        try:
+            call([cp, "build/windows-release/mp4decrypt.exe", "binaries"])
+        except:
+            pass
     elif args.cmd == "enc":
         infile = Path(args.infile)
         if not infile.exists():

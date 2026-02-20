@@ -263,7 +263,7 @@ class SpotifyDownloadManager:
                         mp4dec = Path(__file__).parent.parent / f"binaries/mp4decrypt{suffix}"
 
                     if mp4dec.exists() and mp4dec.is_file():
-                        self.logger.debug(f"Running mp4decrypt {mp4dec!r}")
+                        print(f"Running mp4decrypt {mp4dec!r} with args {keys} {enc_file} {dec_file}")
                         _ = subprocess.run([mp4dec, *keys, enc_file, dec_file])
                         self.logger.debug(f"Moving {dec_file!r} to {enc_file!r}")
                         os.replace(dec_file, enc_file)
