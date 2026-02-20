@@ -106,7 +106,7 @@ def get_username(auth: SpotifyAuthPKCE) -> str:
             print(
                 f"Failed to get username ({res.status_code}): {res.json()['error']['message']}"  # pyright: ignore[reportUnknownMemberType]
             )
-        finally:
+        except:
             return "?"
 
     return cast(dict[str, str], res.json()).get("data", {}).get("me", {}).get("profile", {}).get("name", "?")  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]

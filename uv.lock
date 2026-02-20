@@ -534,6 +534,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyreadline3"
+version = "3.5.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/49/4cea918a08f02817aabae639e3d0ac046fef9f9180518a3ad394e22da148/pyreadline3-3.5.4.tar.gz", hash = "sha256:8d57d53039a1c75adba8e50dd3d992b28143480816187ea5efbd5c78e6c885b7", size = 99839, upload-time = "2024-09-19T02:40:10.062Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/dc/491b7661614ab97483abf2056be1deee4dc2490ecbf7bff9ab5cdbac86e1/pyreadline3-3.5.4-py3-none-any.whl", hash = "sha256:eaf8e6cc3c49bcccf145fc6067ba8643d1df34d604a1ec0eccbf7a18e6d3fae6", size = 83178, upload-time = "2024-09-19T02:40:08.598Z" },
+]
+
+[[package]]
 name = "pywidevine"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -625,6 +634,7 @@ dependencies = [
     { name = "pillow" },
     { name = "protobuf" },
     { name = "pycryptodomex" },
+    { name = "pyreadline3" },
     { name = "pywidevine" },
     { name = "wcwidth" },
     { name = "yt-dlp" },
@@ -640,6 +650,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=12.1.1" },
     { name = "protobuf", specifier = ">=6.33.5" },
     { name = "pycryptodomex", specifier = ">=3.23.0" },
+    { name = "pyreadline3", specifier = ">=3.5.4" },
     { name = "pywidevine", specifier = ">=1.9.0" },
     { name = "wcwidth", specifier = ">=0.6.0" },
     { name = "yt-dlp", specifier = ">=2026.2.4" },
