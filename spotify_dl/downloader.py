@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from queue import Queue
 import traceback
 from typing import Any, Callable
+import uuid
 from requests import HTTPError
 
 from spotify_dl.api.internal.widevine import WidevineClient
@@ -260,23 +261,52 @@ class SpotifyDownloadManager:
                     if p := shutil.which("mp4decrypt"):
                         mp4dec = Path(p).with_suffix(suffix)
                     else:
-                        mp4dec = Path(__file__).parent.parent / f"binaries/mp4decrypt{suffix}"
+                        mp4dec = (
+                            Path(__file__).parent.parent
+                            / f"binaries/mp4decrypt{suffix}"
+                        )
 
                     if mp4dec.exists() and mp4dec.is_file():
-                        print(f"Running mp4decrypt {mp4dec!r} with args {keys} {enc_file} {dec_file}")
-                        _ = subprocess.run([mp4dec, *keys, enc_file, dec_file])
-                        self.logger.debug(f"Moving {dec_file!r} to {enc_file!r}")
-                        os.replace(dec_file, enc_file)
-                        add_metadata = True
+                        print(
+                            f"Running mp4decrypt {mp4dec!r} with args {keys} {enc_file} {dec_file}"
+                        )
+
+                        tmp_input = enc_file.with_name(f"tmp_{uuid.uuid4().hex}.mp4")
+                        tmp_output = enc_file.with_name(
+                            f"tmp_{uuid.uuid4().hex}_out.mp4"
+                        )
+
+                        try:
+                            # workaround for unicode issues with windows
+                            os.replace(enc_file, tmp_input)
+
+                            _ = subprocess.run(
+                                [mp4dec, *keys, tmp_input, tmp_output], check=True
+                            )
+
+                            os.replace(tmp_input, enc_file)
+                            os.replace(tmp_output, enc_file)
+
+                            add_metadata = True
+                        except Exception as e:
+                            self.logger.error(f"mp4decrypt failed: {e}")
+                            if tmp_input.exists():
+                                os.replace(tmp_input, enc_file)
+
+                            if tmp_output.exists():
+                                tmp_output.unlink()
+
+                            raise
+
                     else:
                         self.logger.warning(
                             "mp4decrypt is required for widevine stream. download it from 'https://www.bento4.com/downloads' or build it with 'python script.py build-bento4'"
                         )
                         self.logger.info(
-                            f"call the following command to decrypt the already downloaded file:"
+                            "call the following command to decrypt the already downloaded file:"
                         )
                         self.logger.info(
-                            f"\tmp4decrypt {" ".join(keys)} {shlex.quote(str(enc_file))} {shlex.quote(str(dec_file))}"
+                            f"\tmp4decrypt {' '.join(keys)} {shlex.quote(str(enc_file))} {shlex.quote(str(dec_file))}"
                         )
 
                 if add_metadata:
