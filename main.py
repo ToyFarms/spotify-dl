@@ -242,7 +242,9 @@ def main() -> None:
     program_args = parser.parse_args()
 
     if program_args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.INFO)
     state.iauth = SpotifyInternalAuth()
 
     state.name = get_username(state.auth)
@@ -705,8 +707,7 @@ def main() -> None:
                 else:
                     print(res.content)
             case ["verbose"]:
-                # TODO: i cannot configure logging multiple time
-                logging.basicConfig(level=logging.DEBUG)
+                logging.getLogger().setLevel(logging.INFO)
                 print("verbose on")
             case ["out", dir]:
                 if not Path(dir).expanduser().absolute().exists():

@@ -3,6 +3,7 @@
 import binascii
 import logging
 import os
+import platform
 import shlex
 import shutil
 import subprocess
@@ -251,11 +252,15 @@ class SpotifyDownloadManager:
                     enc_file = Path(param.output)
                     dec_file = Path(param.output).with_stem(enc_file.stem + "_dec")
 
+                    suffix = ""
+                    if platform.system() == "Windows":
+                        suffix = ".exe"
+
                     mp4dec: Path | None = None
                     if p := shutil.which("mp4decrypt"):
-                        mp4dec = Path(p)
+                        mp4dec = Path(p).with_suffix(suffix)
                     else:
-                        mp4dec = Path(__file__).parent.parent / "build/mp4decrypt"
+                        mp4dec = Path(__file__).parent.parent / f"binaries/mp4decrypt{suffix}"
 
                     if mp4dec.exists() and mp4dec.is_file():
                         self.logger.debug(f"Running mp4decrypt {mp4dec!r}")
