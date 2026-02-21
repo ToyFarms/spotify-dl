@@ -37,6 +37,7 @@ from spotify_dl.auth.clienttoken import ClientToken
 from spotify_dl.auth.login5 import Login5Auth
 from spotify_dl.auth.spdc import SpDCAuth
 from spotify_dl.state import state
+from spotify_dl.utils.sanitize_path import sanitize_path
 
 fake = Faker()
 
@@ -644,7 +645,7 @@ def main() -> None:
                         track=track,
                         auth=state.auth,
                         key_provider=state.playplay or state.widevine or state.client,
-                        output=str(path),
+                        output=str(sanitize_path(path)),
                         emulate_playback=args.sim_play,
                     )
                 )
