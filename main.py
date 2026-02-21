@@ -37,7 +37,7 @@ from spotify_dl.auth.clienttoken import ClientToken
 from spotify_dl.auth.login5 import Login5Auth
 from spotify_dl.auth.spdc import SpDCAuth
 from spotify_dl.state import state
-from spotify_dl.utils.sanitize_path import sanitize_path
+from spotify_dl.utils.sanitize_path import sanitize_filename
 
 fake = Faker()
 
@@ -110,7 +110,13 @@ def get_username(auth: SpotifyAuthPKCE) -> str:
         except:
             return "?"
 
-    return cast(dict[str, str], res.json()).get("data", {}).get("me", {}).get("profile", {}).get("name", "?")  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+    return (
+        cast(dict[str, str], res.json())
+        .get("data", {})
+        .get("me", {})
+        .get("profile", {})
+        .get("name", "?")
+    )  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
 
 
 @overload
@@ -357,9 +363,12 @@ def main() -> None:
                 def search(n: int) -> list[Entry]:
                     ret: list[Entry] = []
                     with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-                        artists = " ".join(artist.name for artist in meta.artist)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
+                        artists = " ".join(
+                            artist.name for artist in meta.artist
+                        )  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType, reportAttributeAccessIssue]
                         info = ydl.extract_info(
-                            f"ytsearch{n}:{artists} {meta.name}", download=False  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
+                            f"ytsearch{n}:{artists} {meta.name}",
+                            download=False,  # pyright: ignore[reportUnknownMemberType, reportAttributeAccessIssue]
                         )
 
                         for entry in cast(
@@ -414,7 +423,9 @@ def main() -> None:
                 if not entry:
                     continue
 
-                fmt = choose_best_audio_format(entry["formats"])  # pyright: ignore[reportArgumentType]
+                fmt = choose_best_audio_format(
+                    entry["formats"]
+                )  # pyright: ignore[reportArgumentType]
 
                 out_name = (
                     f"{', '.join(a.name for a in meta.artist)} - {meta.name}.%(ext)s"
@@ -506,14 +517,18 @@ def main() -> None:
 
                 try:
                     with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
-                        ydl2.download([entry["url"]])  # pyright: ignore[reportArgumentType]
+                        ydl2.download(
+                            [entry["url"]]
+                        )  # pyright: ignore[reportArgumentType]
                 except DownloadError as e:
                     print(
                         f"Requested format not available, falling back to 'bestaudio'. Error: {e}"
                     )
                     ydl_download_opts["format"] = "bestaudio"
                     with yt_dlp.YoutubeDL(cast(Any, ydl_download_opts)) as ydl2:
-                        ydl2.download([entry["url"]])  # pyright: ignore[reportArgumentType]
+                        ydl2.download(
+                            [entry["url"]]
+                        )  # pyright: ignore[reportArgumentType]
 
             case ["download" | "dl", *rest]:
                 if state.auth.require_login():
@@ -628,13 +643,15 @@ def main() -> None:
 
                 track.set_format(format)
 
-                path = Path(
-                    f"{', '.join(a.name for a in meta.artist)} - {meta.name}.{AudioCodec.get_extension(format.get_codec())}"
-                )
+                filename = sanitize_filename(f"{', '.join(a.name for a in meta.artist)} - {meta.name}.{AudioCodec.get_extension(format.get_codec())}")
                 if args.output_directory:
-                    path = Path(args.output_directory).expanduser().absolute() / path
+                    path = (
+                        Path(args.output_directory).expanduser().absolute() / filename
+                    )
                 elif state.dir:
-                    path = state.dir.expanduser().absolute() / path
+                    path = state.dir.expanduser().absolute() / filename
+                else:
+                    path = Path(filename)
 
                 if args.sim_play and method == KeySource.WIDEVINE:
                     print("Cannot stream with widevine (yet)")
@@ -645,7 +662,7 @@ def main() -> None:
                         track=track,
                         auth=state.auth,
                         key_provider=state.playplay or state.widevine or state.client,
-                        output=str(sanitize_path(path)),
+                        output=str(path),
                         emulate_playback=args.sim_play,
                     )
                 )
@@ -703,8 +720,12 @@ def main() -> None:
                     print(res.reason)
                     continue
 
-                if "application/json" in res.headers["Content-Type"]:  # pyright: ignore[reportOperatorIssue]
-                    print(json.dumps(res.json(), ensure_ascii=False, indent=4))  # pyright: ignore[reportUnknownMemberType]
+                if (
+                    "application/json" in res.headers["Content-Type"]
+                ):  # pyright: ignore[reportOperatorIssue]
+                    print(
+                        json.dumps(res.json(), ensure_ascii=False, indent=4)
+                    )  # pyright: ignore[reportUnknownMemberType]
                 else:
                     print(res.content)
             case ["verbose"]:

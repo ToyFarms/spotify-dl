@@ -72,3 +72,51 @@ def sanitize_path(
         rebuilt = Path(*sanitized_components) if sanitized_components else Path(".")
 
     return rebuilt
+
+
+def sanitize_filename(name: str | Path, replacement: str = "_", max_length: int = 255) -> str:
+    if isinstance(name, Path):
+        name = name.name
+
+    name = unicodedata.normalize("NFC", name)
+
+    leading_dot = False
+    if name.startswith(".") and name not in (".", ".."):
+        leading_dot = True
+        name_body = name[1:]
+    else:
+        name_body = name
+
+    name_body = _INVALID_CHARS_RE.sub(replacement, name_body)
+    name_body = name_body.replace("\x00", replacement)
+    name_body = re.sub(r"[ \.]+$", lambda m: replacement * len(m.group(0)), name_body)
+
+    if not name_body:
+        name_body = replacement
+
+    if leading_dot:
+        candidate = "." + name_body
+    else:
+        candidate = name_body
+
+    stem, ext = os.path.splitext(candidate)
+    compare_stem = stem[1:] if (leading_dot and stem.startswith(".")) else stem
+    if compare_stem.upper() in _WINDOWS_RESERVED:
+        if leading_dot and stem.startswith("."):
+            stem = "." + (compare_stem + replacement)
+        else:
+            stem = compare_stem + replacement
+        candidate = stem + ext
+
+    if len(candidate) > max_length:
+        stem, ext = os.path.splitext(candidate)
+        avail = max_length - len(ext)
+        if avail <= 0:
+            candidate = candidate[:max_length]
+        else:
+            candidate = stem[:avail] + ext
+
+    if not candidate or candidate in (".", ".."):
+        candidate = replacement
+
+    return candidate
